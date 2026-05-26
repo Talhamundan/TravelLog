@@ -1,13 +1,14 @@
 // Seyahatleri filtrelenebilir tablo halinde listeler ve aksiyonları dışarıya iletir.
-import { Download, Eye, FileSpreadsheet, Pencil, Search, Trash2, Upload } from 'lucide-react';
-import { useMemo, useState } from 'react';
-import { TRANSPORT_TYPES } from '../constants/travel';
+import { Download, Eye, FileSpreadsheet, Filter, Pencil, RotateCcw, Search, SlidersHorizontal, Trash2, Upload, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import EmptyState from '../components/EmptyState';
+import CustomSelect from '../components/ui/CustomSelect';
 import { exportTripsToCsv } from '../utils/exporters';
 import { downloadTripImportTemplate, exportTripsToXlsx, parseTripWorkbook } from '../utils/excelTransfer';
 import { formatCurrency, formatDate, formatKm, minutesToDuration } from '../utils/formatters';
 import { sumBy, toNumber } from '../utils/analytics';
 import { locationLabel, routeLabel } from '../utils/location';
+import { tripProviderLabel } from '../utils/tripDisplay';
 
 const initialFilters = {
   search: '',
@@ -25,16 +26,35 @@ const initialFilters = {
   maxCost: '',
 };
 
-export default function TripsPage({ trips, companies, onEdit, onDelete, onDetail, onNewTrip, onSeed, onImportTrips }) {
+export default function TripsPage({ trips, onEdit, onDelete, onDetail, onNewTrip, onSeed, onImportTrips }) {
   const [filters, setFilters] = useState(initialFilters);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [importState, setImportState] = useState({ open: false, loading: false, message: '' });
+
+  const transportTypes = useMemo(() => uniqueTripValues(trips, 'transportType'), [trips]);
+  const companies = useMemo(() => uniqueTripValues(trips, 'company'), [trips]);
+  const years = useMemo(() => [...new Set(trips.map((trip) => new Date(trip.date).getFullYear()).filter(Boolean))].sort((a, b) => b - a), [trips]);
+  const months = useMemo(
+    () => [...new Set(trips.map((trip) => new Date(trip.date).getMonth() + 1).filter((month) => month >= 1 && month <= 12))].sort((a, b) => a - b),
+    [trips],
+  );
+
+  useEffect(() => {
+    setFilters((current) => ({
+      ...current,
+      transportType: current.transportType && !transportTypes.includes(current.transportType) ? '' : current.transportType,
+      company: current.company && !companies.includes(current.company) ? '' : current.company,
+      year: current.year && !years.map(String).includes(current.year) ? '' : current.year,
+      month: current.month && !months.map(String).includes(current.month) ? '' : current.month,
+    }));
+  }, [companies, months, transportTypes, years]);
 
   const filteredTrips = useMemo(() => {
     const term = filters.search.toLocaleLowerCase('tr-TR');
     return trips
       .filter((trip) => {
         const date = new Date(trip.date);
-        const matchesSearch = !term || [trip.title, trip.from, trip.to, trip.company, trip.notes, trip.pnr].join(' ').toLocaleLowerCase('tr-TR').includes(term);
+        const matchesSearch = !term || [trip.title, trip.from, trip.to, tripProviderLabel(trip), trip.notes, trip.pnr].join(' ').toLocaleLowerCase('tr-TR').includes(term);
         const matchesYear = !filters.year || date.getFullYear() === Number(filters.year);
         const matchesMonth = !filters.month || date.getMonth() + 1 === Number(filters.month);
         return (
@@ -56,9 +76,11 @@ export default function TripsPage({ trips, companies, onEdit, onDelete, onDetail
       .sort((a, b) => String(b.date).localeCompare(String(a.date)));
   }, [filters, trips]);
 
-  const years = [...new Set(trips.map((trip) => new Date(trip.date).getFullYear()).filter(Boolean))].sort((a, b) => b - a);
   const filteredKm = sumBy(filteredTrips, 'distanceKm');
   const filteredCost = sumBy(filteredTrips, 'totalCost');
+  const activeFilterCount = Object.values(filters).filter(Boolean).length;
+  const resetFilters = () => setFilters(initialFilters);
+  const updateFilter = (key, value) => setFilters((current) => ({ ...current, [key]: value }));
 
   const handleImportFile = async (event) => {
     const file = event.target.files?.[0];
@@ -112,45 +134,98 @@ export default function TripsPage({ trips, companies, onEdit, onDelete, onDetail
 
       {!trips.length && <EmptyState onPrimary={onNewTrip} onSeed={onSeed} />}
 
-      <section className="panel filters-panel">
-        <label className="search-input">
-          <Search size={17} />
-          <input value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Ara: şehir, firma, PNR, not" />
-        </label>
-        <input type="date" value={filters.fromDate} onChange={(event) => setFilters({ ...filters, fromDate: event.target.value })} />
-        <input type="date" value={filters.toDate} onChange={(event) => setFilters({ ...filters, toDate: event.target.value })} />
-        <select value={filters.transportType} onChange={(event) => setFilters({ ...filters, transportType: event.target.value })}>
-          <option value="">Ulaşım türü</option>
-          {TRANSPORT_TYPES.map((type) => (
-            <option key={type}>{type}</option>
-          ))}
-        </select>
-        <select value={filters.company} onChange={(event) => setFilters({ ...filters, company: event.target.value })}>
-          <option value="">Firma</option>
-          {companies.map((company) => (
-            <option key={company}>{company}</option>
-          ))}
-        </select>
-        <input value={filters.from} onChange={(event) => setFilters({ ...filters, from: event.target.value })} placeholder="Başlangıç" />
-        <input value={filters.to} onChange={(event) => setFilters({ ...filters, to: event.target.value })} placeholder="Varış" />
-        <select value={filters.year} onChange={(event) => setFilters({ ...filters, year: event.target.value })}>
-          <option value="">Yıl</option>
-          {years.map((year) => (
-            <option key={year}>{year}</option>
-          ))}
-        </select>
-        <select value={filters.month} onChange={(event) => setFilters({ ...filters, month: event.target.value })}>
-          <option value="">Ay</option>
-          {Array.from({ length: 12 }, (_, index) => (
-            <option key={index + 1} value={index + 1}>
-              {index + 1}
-            </option>
-          ))}
-        </select>
-        <input type="number" value={filters.minKm} onChange={(event) => setFilters({ ...filters, minKm: event.target.value })} placeholder="Min km" />
-        <input type="number" value={filters.maxKm} onChange={(event) => setFilters({ ...filters, maxKm: event.target.value })} placeholder="Max km" />
-        <input type="number" value={filters.minCost} onChange={(event) => setFilters({ ...filters, minCost: event.target.value })} placeholder="Min maliyet" />
-        <input type="number" value={filters.maxCost} onChange={(event) => setFilters({ ...filters, maxCost: event.target.value })} placeholder="Max maliyet" />
+      <section className="trips-filter-bar">
+        <div className="trips-filter-primary">
+          <label className="trips-search">
+            <Search size={18} />
+            <input value={filters.search} onChange={(event) => updateFilter('search', event.target.value)} placeholder="Şehir, firma, PNR veya not ara..." />
+            {filters.search && (
+              <button type="button" onClick={() => updateFilter('search', '')} aria-label="Aramayı temizle">
+                <X size={15} />
+              </button>
+            )}
+          </label>
+          <CustomSelect
+            value={filters.transportType}
+            options={['', ...transportTypes].map((value) => ({ value, label: value || 'Tüm ulaşım' }))}
+            onChange={(value) => updateFilter('transportType', value)}
+          />
+          <CustomSelect
+            value={filters.company}
+            options={['', ...companies].map((value) => ({ value, label: value || 'Tüm firmalar' }))}
+            onChange={(value) => updateFilter('company', value)}
+          />
+          <button type="button" className={`filter-toggle ${advancedOpen ? 'active' : ''}`} onClick={() => setAdvancedOpen((value) => !value)}>
+            <SlidersHorizontal size={17} />
+            Detaylı Filtre
+            {activeFilterCount > 0 && <b>{activeFilterCount}</b>}
+          </button>
+        </div>
+
+        {activeFilterCount > 0 && (
+          <div className="filter-chip-row">
+            <Filter size={15} />
+            <span>{filteredTrips.length} kayıt listeleniyor</span>
+            {Object.entries(filters)
+              .filter(([, value]) => Boolean(value))
+              .slice(0, 6)
+              .map(([key, value]) => (
+                <button type="button" key={key} onClick={() => updateFilter(key, '')}>
+                  {filterLabel(key, value)}
+                  <X size={13} />
+                </button>
+              ))}
+            <button type="button" className="clear-filters" onClick={resetFilters}>
+              <RotateCcw size={14} />
+              Temizle
+            </button>
+          </div>
+        )}
+
+        {advancedOpen && (
+          <div className="trips-advanced-filters">
+            <label>
+              <span>Tarih başlangıç</span>
+              <input type="date" value={filters.fromDate} onChange={(event) => updateFilter('fromDate', event.target.value)} />
+            </label>
+            <label>
+              <span>Tarih bitiş</span>
+              <input type="date" value={filters.toDate} onChange={(event) => updateFilter('toDate', event.target.value)} />
+            </label>
+            <label>
+              <span>Başlangıç</span>
+              <input value={filters.from} onChange={(event) => updateFilter('from', event.target.value)} placeholder="Şehir veya nokta" />
+            </label>
+            <label>
+              <span>Varış</span>
+              <input value={filters.to} onChange={(event) => updateFilter('to', event.target.value)} placeholder="Şehir veya nokta" />
+            </label>
+            <label>
+              <span>Yıl</span>
+              <CustomSelect value={filters.year} options={['', ...years.map(String)].map((value) => ({ value, label: value || 'Tüm yıllar' }))} onChange={(value) => updateFilter('year', value)} />
+            </label>
+            <label>
+              <span>Ay</span>
+              <CustomSelect value={filters.month} options={['', ...months.map(String)].map((value) => ({ value, label: value || 'Tüm aylar' }))} onChange={(value) => updateFilter('month', value)} />
+            </label>
+            <label>
+              <span>Min km</span>
+              <input type="number" value={filters.minKm} onChange={(event) => updateFilter('minKm', event.target.value)} placeholder="0" />
+            </label>
+            <label>
+              <span>Max km</span>
+              <input type="number" value={filters.maxKm} onChange={(event) => updateFilter('maxKm', event.target.value)} placeholder="Sınır yok" />
+            </label>
+            <label>
+              <span>Min maliyet</span>
+              <input type="number" value={filters.minCost} onChange={(event) => updateFilter('minCost', event.target.value)} placeholder="₺" />
+            </label>
+            <label>
+              <span>Max maliyet</span>
+              <input type="number" value={filters.maxCost} onChange={(event) => updateFilter('maxCost', event.target.value)} placeholder="₺" />
+            </label>
+          </div>
+        )}
       </section>
       {trips.length > 0 && (
         <section className="filter-summary">
@@ -186,7 +261,7 @@ export default function TripsPage({ trips, companies, onEdit, onDelete, onDetail
                     <small>{trip.title}</small>
                   </td>
                   <td>{trip.transportType}</td>
-                  <td>{trip.company || '-'}</td>
+                  <td>{tripProviderLabel(trip)}</td>
                   <td>{minutesToDuration(trip.durationMinutes)}</td>
                   <td>{formatKm(trip.distanceKm)}</td>
                   <td>{formatCurrency(trip.totalCost, trip.currency)}</td>
@@ -218,4 +293,27 @@ export default function TripsPage({ trips, companies, onEdit, onDelete, onDetail
       )}
     </div>
   );
+}
+
+function uniqueTripValues(trips, key) {
+  return [...new Set(trips.map((trip) => String(trip[key] || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
+}
+
+function filterLabel(key, value) {
+  const labels = {
+    search: 'Ara',
+    fromDate: 'Başlangıç tarih',
+    toDate: 'Bitiş tarih',
+    transportType: 'Ulaşım',
+    company: 'Firma',
+    from: 'Başlangıç',
+    to: 'Varış',
+    year: 'Yıl',
+    month: 'Ay',
+    minKm: 'Min km',
+    maxKm: 'Max km',
+    minCost: 'Min maliyet',
+    maxCost: 'Max maliyet',
+  };
+  return `${labels[key] || key}: ${value}`;
 }

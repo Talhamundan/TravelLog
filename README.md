@@ -26,6 +26,12 @@ VITE_FIREBASE_APP_ID=
 
 Env değerleri yoksa uygulama demo/localStorage modunda açılır. Gerçek veritabanı için Firestore rules dosyasındaki kuralları Firebase Console üzerinden yayınlayın.
 
+## Harita ve rota sistemi
+
+TravelLog harita tarafında ücretli API gerektirmez. Konum arama için OpenStreetMap Nominatim, çok duraklı gerçek yol rotası ve km/süre hesabı için OSRM, görsel harita için Leaflet/CARTO tile kullanılır.
+
+Not: Nominatim ve OSRM herkese açık servislerdir; yoğun/kurumsal kullanımda kendi instance'ınızı veya uygun bir servis sağlayıcıyı kullanmanız önerilir. Servis yanıt vermezse uygulama çökmez; manuel km/süre girişi açık kalır.
+
 ## Koleksiyonlar
 
 - `users`

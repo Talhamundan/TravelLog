@@ -1,8 +1,9 @@
-// Dashboard üzerinde tüm seyahatlerin başlangıç/varış noktalarını toplu gösterir.
-import { Fragment, useMemo, useState } from 'react';
-import { MapContainer, Marker, Polyline, Popup, TileLayer } from 'react-leaflet';
-import { defaultTurkeyCenter, getCityCoords, getStopCoords } from '../utils/cityCoordinates';
-import { locationCity, locationCoords, routeLabel } from '../utils/location';
+// Dashboard ve Harita sayfası için ortak TravelMapBase üzerine kurulu rota/konum haritası.
+import { useMemo } from 'react';
+import LeafletRouteMap from './maps/LeafletRouteMap';
+import TravelMapBase from './maps/TravelMapBase';
+import { getStopCoords } from '../utils/cityCoordinates';
+import { locationCity, resolveLocationCoords, routeLabel } from '../utils/location';
 import { formatCurrency, formatKm } from '../utils/formatters';
 
 const transportColors = {
@@ -14,63 +15,147 @@ const transportColors = {
   Diğer: '#ef4444',
 };
 
-const getCoord = (value) => locationCoords(value) || getCityCoords(locationCity(value) || value);
+export default function TravelMap({
+  trips,
+  savedLocations = [],
+  selectedLocation = null,
+  onLocationPick,
+  onSavedLocationSelect,
+  showRoutes = true,
+  theme = 'dark',
+  onThemeChange,
+}) {
+  const routedTrips = useMemo(() => trips.filter((trip) => trip.route?.overviewPath?.length || trip.fromLocation?.lat), [trips]);
+  const visibleTrips = useMemo(() => (showRoutes ? trips.filter((trip) => trip.from && trip.to) : []), [showRoutes, trips]);
+  const routeItems = useMemo(
+    () =>
+      visibleTrips
+        .map((trip) => {
+          const from = resolveLocationCoords(trip.fromLocation || trip.from, trip.fromCoords);
+          const to = resolveLocationCoords(trip.toLocation || trip.to, trip.toCoords);
+          const stops = getStopCoords(trip.stops);
+          const points = [from, ...stops.map((stop) => stop.coords), to].filter(Boolean);
+          return {
+            trip,
+            from,
+            to,
+            stops,
+            points,
+            color: transportColors[trip.transportType] || transportColors.Diğer,
+          };
+        })
+        .filter((item) => item.from && item.to),
+    [visibleTrips],
+  );
 
-export default function TravelMap({ trips }) {
-  const [animate, setAnimate] = useState(false);
-  const visibleTrips = trips.filter((trip) => trip.from && trip.to);
-  const firstRoute = useMemo(() => visibleTrips[0], [visibleTrips]);
+  const routes = routeItems.map((item) => ({
+    id: item.trip.id || routeLabel(item.trip),
+    points: item.points,
+    color: item.color,
+  }));
+
+  const markers = [
+    ...savedLocations
+      .filter((location) => Number.isFinite(Number(location.lat)) && Number.isFinite(Number(location.lng)))
+      .map((location) => ({
+        id: `saved-${location.id || location.name}`,
+        position: [Number(location.lat), Number(location.lng)],
+        tooltip: location.name,
+        popup: (
+          <>
+            <strong>{location.name}</strong>
+            <br />
+            {location.type || 'Kayıtlı konum'}
+          </>
+        ),
+        onClick: () => onSavedLocationSelect?.(location),
+      })),
+    ...(selectedLocation?.lat && selectedLocation?.lng
+      ? [
+          {
+            id: 'selected-location',
+            position: [Number(selectedLocation.lat), Number(selectedLocation.lng)],
+            tooltip: selectedLocation.name || 'Seçili konum',
+            popup: (
+              <>
+                <strong>{selectedLocation.name || 'Seçili konum'}</strong>
+                <br />
+                {selectedLocation.type || 'Konum'}
+              </>
+            ),
+          },
+        ]
+      : []),
+    ...routeItems.flatMap(({ trip, from, to, stops }) => [
+      {
+        id: `${trip.id || routeLabel(trip)}-from`,
+        position: from,
+        tooltip: locationCity(trip.from) || routeLabel(trip).split(' → ')[0],
+        popup: (
+          <>
+            <strong>{routeLabel(trip)}</strong>
+            <br />
+            {trip.transportType} · {formatKm(trip.distanceKm)} · {formatCurrency(trip.totalCost, trip.currency)}
+          </>
+        ),
+      },
+      ...stops.map((stop) => ({
+        id: `${trip.id || routeLabel(trip)}-${stop.name}`,
+        position: stop.coords,
+        tooltip: stop.name,
+        popup: stop.name,
+      })),
+      {
+        id: `${trip.id || routeLabel(trip)}-to`,
+        position: to,
+        tooltip: locationCity(trip.to) || routeLabel(trip).split(' → ')[1],
+        popup: routeLabel(trip),
+      },
+    ]),
+  ];
 
   return (
-    <div className="map-shell">
+    <div className={`map-shell map-shell-${theme}`}>
       <div className="map-toolbar">
         <div>
-          <h2>Seyahat Haritası</h2>
-          <span>Tüm seyahat rotalarını görüntüleyin</span>
+          <h2>{showRoutes ? 'Seyahat Haritası' : 'Konum Haritası'}</h2>
+          <span>{showRoutes ? 'Tüm seyahat rotalarını görüntüleyin' : 'Kayıtlı konumları yönetin'}</span>
         </div>
-        <button className="secondary-button" onClick={() => setAnimate((value) => !value)}>
-          {animate ? 'Animasyonu Durdur' : 'Animasyonu Başlat'}
-        </button>
-      </div>
-      <MapContainer center={defaultTurkeyCenter} zoom={5} className="trip-map dashboard-map" scrollWheelZoom={false}>
-        <TileLayer
-          attribution="&copy; OpenStreetMap"
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-        />
-        {visibleTrips.map((trip) => {
-          const from = trip.fromCoords || getCoord(trip.from);
-          const to = trip.toCoords || getCoord(trip.to);
-          const stops = getStopCoords(trip.stops);
-          const route = [from, ...stops.map((stop) => stop.coords), to];
-          const color = transportColors[trip.transportType] || transportColors.Diğer;
-          return (
-            <Fragment key={trip.id || `${routeLabel(trip)}-${trip.date}`}>
-              <Marker position={from}>
-                <Popup>
-                  <strong>{routeLabel(trip)}</strong>
-                  <br />
-                  {trip.transportType} · {formatKm(trip.distanceKm)} · {formatCurrency(trip.totalCost, trip.currency)}
-                </Popup>
-              </Marker>
-              {stops.map((stop) => (
-                <Marker key={`${trip.id}-${stop.name}`} position={stop.coords}>
-                  <Popup>{stop.name}</Popup>
-                </Marker>
+        <div className="map-toolbar-actions">
+          {onThemeChange && (
+            <div className="map-theme-toggle" aria-label="Harita teması">
+              {[
+                ['dark', 'Dark'],
+                ['light', 'Light'],
+                ['minimal', 'Minimal'],
+              ].map(([value, label]) => (
+                <button type="button" key={value} className={theme === value ? 'active' : ''} onClick={() => onThemeChange(value)}>
+                  {label}
+                </button>
               ))}
-              <Marker position={to}>
-                <Popup>{routeLabel(trip)}</Popup>
-              </Marker>
-              <Polyline positions={route} color={color} weight={4} opacity={0.72} className="glow-route" />
-            </Fragment>
-          );
-        })}
-      </MapContainer>
-      {animate && firstRoute && <span className={`route-orb ${firstRoute.transportType || 'Diğer'}`} />}
-      <div className="map-legend">
-        {Object.entries(transportColors).map(([label, color]) => (
-          <span key={label}><i style={{ background: color }} />{label}</span>
-        ))}
+            </div>
+          )}
+        </div>
       </div>
+      {routedTrips.length && showRoutes ? (
+        <LeafletRouteMap trips={routedTrips} theme={theme} className="dashboard-map" />
+      ) : (
+        <TravelMapBase
+          routes={routes}
+          markers={markers}
+          theme={theme}
+          className="dashboard-map"
+          onMapClick={onLocationPick}
+          fitKey={`${theme}-${routes.map((route) => route.id).join('|')}-${markers.map((marker) => marker.id).join('|')}`}
+        />
+      )}
+      {showRoutes && (
+        <div className="map-legend">
+          {Object.entries(transportColors).map(([label, color]) => (
+            <span key={label}><i style={{ background: color }} />{label}</span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 // Seyahat formu hesaplamaları ve geriye uyumlu analitik exportları.
-import { getCityCoords, getStopCoords } from './cityCoordinates';
-import { locationCity } from './location';
+import { getStopCoords } from './cityCoordinates';
+import { resolveLocationCoords } from './location';
 export { createChartData, createStats, toNumber } from './analytics';
 
 const toNumeric = (value) => Number.parseFloat(value) || 0;
@@ -25,11 +25,11 @@ export const calculateDurationMinutes = (departureTime, arrivalTime) => {
 
 export const normalizeTripPayload = (trip, userId) => {
   const durationMinutes = trip.durationMinutes || calculateDurationMinutes(trip.departureTime, trip.arrivalTime);
+  const stops = typeof trip.stops === 'string' ? trip.stops.split(',').map((stop) => stop.trim()).filter(Boolean) : trip.stops || [];
+  const fromCoords = resolveLocationCoords(trip.fromLocation || trip.from || trip.fromText, trip.fromCoords);
+  const toCoords = resolveLocationCoords(trip.toLocation || trip.to || trip.toText, trip.toCoords);
   const totalCost = calculateTotalCost(trip);
   const distanceKm = toNumeric(trip.distanceKm);
-  const stops = typeof trip.stops === 'string' ? trip.stops.split(',').map((stop) => stop.trim()).filter(Boolean) : trip.stops || [];
-  const fromCoords = trip.fromCoords || getCityCoords(locationCity(trip.from) || trip.from);
-  const toCoords = trip.toCoords || getCityCoords(locationCity(trip.to) || trip.to);
 
   return {
     ...trip,
@@ -60,6 +60,8 @@ export const normalizeTripPayload = (trip, userId) => {
     departureTime: trip.departureTime || '',
     arrivalTime: trip.arrivalTime || '',
     stops,
+    waypoints: Array.isArray(trip.waypoints) ? trip.waypoints.map((point, index) => ({ ...point, order: point.order ?? index })) : [],
+    route: trip.route || null,
     durationMinutes: toNumeric(durationMinutes),
     distanceKm,
     ticketPrice: toNumeric(trip.ticketPrice),
@@ -70,6 +72,11 @@ export const normalizeTripPayload = (trip, userId) => {
     otherCost: toNumeric(trip.otherCost),
     totalCost,
     costPerKm: distanceKm ? totalCost / distanceKm : 0,
+    distanceAutoCalculated: Boolean(trip.distanceAutoCalculated),
+    distanceManuallyEdited: Boolean(trip.distanceManuallyEdited),
+    durationAutoCalculated: Boolean(trip.durationAutoCalculated),
+    durationManuallyEdited: Boolean(trip.durationManuallyEdited),
+    distanceCalculation: trip.distanceCalculation || '',
     pnr: trip.pnr || '',
     ticketUrl: trip.ticketUrl || trip.fileUrl || '',
     routeNote: trip.routeNote || '',

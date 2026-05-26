@@ -10,6 +10,8 @@ export const EMPTY_TRIP = {
   from: '',
   to: '',
   stops: '',
+  waypoints: [],
+  route: null,
   transportType: 'Otobüs',
   company: '',
   date: '',

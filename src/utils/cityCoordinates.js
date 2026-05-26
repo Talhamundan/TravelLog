@@ -20,9 +20,11 @@ export const cityCoordinates = {
   Mardin: [37.3122, 40.735],
   Kocaeli: [40.7654, 29.9408],
   Sakarya: [40.7569, 30.3781],
+  Şırnak: [37.519, 42.4537],
   Sivas: [39.7477, 37.0179],
   Malatya: [38.3552, 38.3095],
   Mersin: [36.8121, 34.6415],
+  Silifke: [36.3778, 33.9344],
 };
 
 export const pointPresets = [
@@ -35,11 +37,36 @@ export const pointPresets = [
   { city: 'Ankara', district: 'Çankaya', pointName: 'AŞTİ', type: 'Otogar', lat: 39.918, lng: 32.814 },
   { city: 'İzmir', district: 'Bornova', pointName: 'İzmir Otogarı', type: 'Otogar', lat: 38.449, lng: 27.213 },
   { city: 'Bursa', district: 'Osmangazi', pointName: 'Bursa Otogarı', type: 'Otogar', lat: 40.266, lng: 29.05 },
+  { city: 'Adana', district: 'Seyhan', pointName: 'Adana Otogarı', type: 'Otogar', lat: 36.9994, lng: 35.2806 },
+  { city: 'Adana', district: 'Seyhan', pointName: 'Adana Şakirpaşa Havalimanı', type: 'Havalimanı', lat: 36.9822, lng: 35.2804 },
+  { city: 'Mersin', district: 'Silifke', pointName: 'Silifke Otogarı', type: 'Otogar', lat: 36.3778, lng: 33.9344 },
 ];
 
 export const defaultTurkeyCenter = [39.0, 35.0];
 
-export const getCityCoords = (city) => cityCoordinates[String(city || '').trim()] || defaultTurkeyCenter;
+export const getCityCoords = (city) => {
+  const text = String(city || '').trim();
+  if (!text) return defaultTurkeyCenter;
+
+  const exactCity = cityCoordinates[text];
+  if (exactCity) return exactCity;
+
+  const query = normalizeCoordinateText(text);
+  const point = pointPresets.find((preset) => {
+    const fields = [
+      preset.pointName,
+      `${preset.city} ${preset.pointName}`,
+      `${preset.city} ${preset.district} ${preset.pointName}`,
+      preset.city,
+      preset.district,
+    ];
+    return fields.filter(Boolean).some((field) => normalizeCoordinateText(field).includes(query) || query.includes(normalizeCoordinateText(field)));
+  });
+  if (point) return [point.lat, point.lng];
+
+  const cityName = Object.keys(cityCoordinates).find((name) => query.includes(normalizeCoordinateText(name)));
+  return cityName ? cityCoordinates[cityName] : defaultTurkeyCenter;
+};
 
 export const getStopCoords = (stops = []) => {
   const stopList = Array.isArray(stops) ? stops : String(stops || '').split(',');
@@ -57,3 +84,16 @@ export const getStopCoords = (stops = []) => {
 };
 
 export const cityNames = Object.keys(cityCoordinates);
+
+function normalizeCoordinateText(value = '') {
+  return String(value)
+    .toLocaleLowerCase('tr-TR')
+    .replace(/ı/g, 'i')
+    .replace(/ğ/g, 'g')
+    .replace(/ü/g, 'u')
+    .replace(/ş/g, 's')
+    .replace(/ö/g, 'o')
+    .replace(/ç/g, 'c')
+    .replace(/\s+/g, ' ')
+    .trim();
+}

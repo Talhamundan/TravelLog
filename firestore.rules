@@ -15,8 +15,8 @@ service cloud.firestore {
     }
 
     match /{collection}/{docId} {
-      allow read, update, delete: if collection in ['trips', 'companies', 'vehicles', 'expenses', 'settings'] && ownsExistingData();
-      allow create: if collection in ['trips', 'companies', 'vehicles', 'expenses', 'settings']
+      allow read, update, delete: if collection in ['trips', 'companies', 'vehicles', 'locations', 'expenses', 'settings'] && ownsExistingData();
+      allow create: if collection in ['trips', 'companies', 'vehicles', 'locations', 'expenses', 'settings']
         && signedIn()
         && request.auth.uid == request.resource.data.userId;
     }

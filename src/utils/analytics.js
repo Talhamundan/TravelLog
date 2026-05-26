@@ -1,6 +1,7 @@
 // Dashboard ve rapor ekranları için seyahat analitik hesaplamaları.
 import { monthName } from './formatters';
 import { routeLabel } from './location';
+import { tripProviderLabel } from './tripDisplay';
 
 export const toNumber = (value) => Number.parseFloat(value) || 0;
 const plateKey = (value = '') => String(value).toLocaleUpperCase('tr-TR').replace(/[^0-9A-Z]/g, '');
@@ -44,7 +45,7 @@ export const createStats = (trips, now = new Date()) => {
   const totalKm = sumBy(trips, 'distanceKm');
   const totalCost = sumBy(trips, 'totalCost');
   const top = (rows) => rows[0]?.name || '0';
-  const companies = groupedSummary(trips, (trip) => trip.company || 'Belirtilmedi');
+  const companies = groupedSummary(trips, tripProviderLabel);
   const transports = groupedSummary(trips, (trip) => trip.transportType || 'Diğer');
   const routes = groupedSummary(trips, routeKey);
 
@@ -87,7 +88,7 @@ export const createChartData = (trips) => {
   return {
     monthly,
     transport: groupedSummary(trips, (trip) => trip.transportType || 'Diğer').map((item) => ({ name: item.name, value: item.count, ...item })),
-    companies: groupedSummary(trips, (trip) => trip.company || 'Belirtilmedi').map((item) => ({ name: item.name, value: item.count, ...item })),
+    companies: groupedSummary(trips, tripProviderLabel).map((item) => ({ name: item.name, value: item.count, ...item })),
     years: Object.values(byYear).sort((a, b) => a.name.localeCompare(b.name)),
     routes: groupedSummary(trips, routeKey).slice(0, 10).map((item) => ({ ...item, value: item.count })),
   };
@@ -99,7 +100,7 @@ export const buildReports = (trips) => ({
     const date = new Date(trip.date);
     return Number.isNaN(date.getTime()) ? 'Belirsiz' : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
   }),
-  companies: groupedSummary(trips, (trip) => trip.company || 'Belirtilmedi'),
+  companies: groupedSummary(trips, tripProviderLabel),
   transports: groupedSummary(trips, (trip) => trip.transportType || 'Diğer'),
   routes: groupedSummary(trips, routeKey),
   vehicleCosts: groupedSummary(
@@ -123,3 +124,51 @@ export const vehicleStats = (trips, vehicle) => {
 };
 
 export const companyStats = (trips, company) => summarizeGroup(company?.name || '-', trips.filter((trip) => trip.company === company?.name));
+
+export const getTotalDistance = (trips = []) => sumBy(trips, 'distanceKm');
+
+export const getTotalCost = (trips = []) => sumBy(trips, 'totalCost');
+
+export const getCostPerKm = (trips = []) => {
+  const km = getTotalDistance(trips);
+  return km ? getTotalCost(trips) / km : 0;
+};
+
+export const getYearlyStats = (trips = [], year = new Date().getFullYear()) => {
+  const rows = trips.filter((trip) => new Date(trip.date).getFullYear() === Number(year));
+  return createStats(rows, new Date(Number(year), new Date().getMonth(), 1));
+};
+
+export const getMonthlyStats = (trips = [], year = new Date().getFullYear(), month = new Date().getMonth()) => {
+  const rows = trips.filter((trip) => {
+    const date = new Date(trip.date);
+    return date.getFullYear() === Number(year) && date.getMonth() === Number(month);
+  });
+  return createStats(rows, new Date(Number(year), Number(month), 1));
+};
+
+export const getMostUsedTransport = (trips = []) => groupedSummary(trips, (trip) => trip.transportType || 'Diğer')[0] || null;
+
+export const getMostUsedCompany = (trips = []) => groupedSummary(trips, tripProviderLabel)[0] || null;
+
+export const getMostUsedRoutes = (trips = []) => groupedSummary(trips, routeKey);
+
+export const getExpenseBreakdown = (trips = []) => ({
+  ticket: sumBy(trips, 'ticketPrice'),
+  fuel: sumBy(trips, 'fuelCost'),
+  roadBridge: sumBy(trips, 'roadCost') + sumBy(trips, 'bridgeCost'),
+  parking: sumBy(trips, 'parkingCost'),
+  other: sumBy(trips, 'otherCost'),
+});
+
+export const getUpcomingTrips = (trips = [], limit = 8, now = new Date()) => {
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  return trips
+    .filter((trip) => {
+      const date = new Date(trip.date);
+      return !Number.isNaN(date.getTime()) && date >= today;
+    })
+    .sort((a, b) => new Date(a.date) - new Date(b.date))
+    .slice(0, limit);
+};

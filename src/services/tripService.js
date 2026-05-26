@@ -18,6 +18,7 @@ const collectionNames = {
   trips: 'trips',
   companies: 'companies',
   vehicles: 'vehicles',
+  locations: 'locations',
   expenses: 'expenses',
   settings: 'settings',
 };

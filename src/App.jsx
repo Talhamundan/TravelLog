@@ -12,7 +12,10 @@ import ReportsPage from './pages/ReportsPage';
 import SimpleDirectoryPage from './pages/SimpleDirectoryPage';
 import SettingsPage from './pages/SettingsPage';
 import MapPage from './pages/MapPage';
+import CalendarPage from './pages/Calendar';
+import ExpensesPage from './pages/Expenses';
 import { DEFAULT_COMPANIES } from './constants/travel';
+import { normalizeTrips } from './utils/tripNormalizers';
 
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -31,9 +34,12 @@ const navItems = [
 export default function App() {
   const [user, setUser] = useState(null);
   const [activePage, setActivePage] = useState('dashboard');
+  const [yearFilter, setYearFilter] = useState('');
   const [trips, setTrips] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [vehicles, setVehicles] = useState([]);
+  const [savedLocations, setSavedLocations] = useState([]);
+  const [expenses, setExpenses] = useState([]);
   const [editingTrip, setEditingTrip] = useState(null);
   const [detailTrip, setDetailTrip] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -60,14 +66,18 @@ export default function App() {
     if (showLoading) setLoading(true);
     setLastError('');
     try {
-      const [tripRows, companyRows, vehicleRows] = await Promise.all([
+      const [tripRows, companyRows, vehicleRows, locationRows, expenseRows] = await Promise.all([
         listTrips(userId),
         listOwnedCollection('companies', userId),
         listOwnedCollection('vehicles', userId),
+        listOwnedCollection('locations', userId),
+        listOwnedCollection('expenses', userId),
       ]);
       setTrips(tripRows);
       setCompanies(companyRows.length ? companyRows : []);
       setVehicles(vehicleRows);
+      setSavedLocations(locationRows);
+      setExpenses(expenseRows);
     } catch (error) {
       const message = error?.message || 'Veriler yüklenirken beklenmeyen bir hata oluştu.';
       console.error('Firestore error', error);
@@ -76,6 +86,8 @@ export default function App() {
         setTrips([]);
         setCompanies([]);
         setVehicles([]);
+        setSavedLocations([]);
+        setExpenses([]);
       }
     } finally {
       if (showLoading) setLoading(false);
@@ -85,6 +97,15 @@ export default function App() {
   const companyNames = useMemo(
     () => [...new Set([...DEFAULT_COMPANIES, ...companies.map((company) => company.name)].filter(Boolean))],
     [companies],
+  );
+  const normalizedTrips = useMemo(() => normalizeTrips(trips), [trips]);
+  const availableYears = useMemo(
+    () => [...new Set(normalizedTrips.map((trip) => new Date(trip.date).getFullYear()).filter(Boolean))].sort((a, b) => b - a),
+    [normalizedTrips],
+  );
+  const visibleTrips = useMemo(
+    () => (yearFilter ? normalizedTrips.filter((trip) => new Date(trip.date).getFullYear() === Number(yearFilter)) : normalizedTrips),
+    [normalizedTrips, yearFilter],
   );
 
   const handleCreateDemoData = async () => {
@@ -182,9 +203,22 @@ export default function App() {
   const requestDeleteDirectoryItem = (collectionName, item) => {
     setConfirmState({
       title: 'Kayıt silinsin mi?',
-      message: `${item.name || item.plate || 'Bu kayıt'} kalıcı olarak silinecek.`,
+      message: `${item.name || item.plate || item.description || 'Bu kayıt'} kalıcı olarak silinecek.`,
       directory: { collectionName, item },
     });
+  };
+
+  const handleSaveExpense = async (expense) => {
+    try {
+      await saveOwnedItem('expenses', expense, user.uid);
+      await refreshData();
+      showToast('Masraf kaydedildi.');
+    } catch (error) {
+      const message = error?.message || 'Masraf kaydedilemedi.';
+      console.error('Firestore error', error);
+      setLastError(message);
+      showToast(message, 'error');
+    }
   };
 
   const handleImportTrips = async (rows) => {
@@ -209,16 +243,19 @@ export default function App() {
   const page = {
     dashboard: (
       <Dashboard
-        trips={trips}
+        trips={visibleTrips}
         onOpenTrips={() => setActivePage('trips')}
         onNewTrip={() => setActivePage('new-trip')}
         onSeed={handleCreateDemoData}
         onImportTrips={handleImportTrips}
+        onEdit={handleEditTrip}
+        onDelete={requestDeleteTrip}
+        onDetail={setDetailTrip}
       />
     ),
     trips: (
       <TripsPage
-        trips={trips}
+        trips={visibleTrips}
         companies={companyNames}
         onEdit={handleEditTrip}
         onDelete={requestDeleteTrip}
@@ -232,6 +269,7 @@ export default function App() {
         initialTrip={editingTrip}
         companies={companyNames}
         vehicles={vehicles}
+        savedLocations={savedLocations}
         onCancel={() => {
           setEditingTrip(null);
           setActivePage('trips');
@@ -244,7 +282,7 @@ export default function App() {
         title="Araçlar"
         description="Araç seyahati maliyetleri için plaka ve araç adlarını yönetin."
         items={vehicles}
-        trips={trips}
+        trips={visibleTrips}
         type="vehicles"
         fields={[
           { key: 'plate', label: 'Plaka' },
@@ -265,7 +303,7 @@ export default function App() {
         title="Firmalar"
         description="Bilet aldığınız veya kullandığınız firmaları hızlı seçim listesine ekleyin."
         items={companies}
-        trips={trips}
+        trips={visibleTrips}
         type="companies"
         fields={[
           { key: 'name', label: 'Firma adı' },
@@ -279,10 +317,39 @@ export default function App() {
         onSeed={handleCreateDemoData}
       />
     ),
-    reports: <ReportsPage trips={trips} onNewTrip={() => setActivePage('new-trip')} onSeed={handleCreateDemoData} />,
-    map: <MapPage trips={trips} companies={companyNames} />,
-    expenses: <Placeholder title="Masraflar" description="Seyahat bazlı masraf merkezi hazırlanıyor. Şimdilik maliyetler seyahat kayıtlarından hesaplanıyor." />,
-    calendar: <Placeholder title="Takvim" description="Seyahat takvimi görünümü dashboard altında özetlenir; detaylı takvim burada genişletilecek." />,
+    reports: <ReportsPage trips={visibleTrips} onNewTrip={() => setActivePage('new-trip')} onSeed={handleCreateDemoData} />,
+    map: (
+      <MapPage
+        trips={visibleTrips}
+        companies={companyNames}
+        savedLocations={savedLocations}
+        onSaveLocation={(item) => handleSaveDirectoryItem('locations', item)}
+        onDeleteLocation={(item) => requestDeleteDirectoryItem('locations', item)}
+      />
+    ),
+    expenses: (
+      <ExpensesPage
+        trips={visibleTrips}
+        expenses={expenses}
+        vehicles={vehicles}
+        loading={loading}
+        onNewTrip={() => setActivePage('new-trip')}
+        onSeed={handleCreateDemoData}
+        onSaveExpense={handleSaveExpense}
+        onDeleteExpense={(item) => requestDeleteDirectoryItem('expenses', item)}
+        onDetailTrip={setDetailTrip}
+      />
+    ),
+    calendar: (
+      <CalendarPage
+        trips={visibleTrips}
+        loading={loading}
+        onNewTrip={() => setActivePage('new-trip')}
+        onSeed={handleCreateDemoData}
+        onEdit={handleEditTrip}
+        onDetail={setDetailTrip}
+      />
+    ),
     reminders: <Placeholder title="Hatırlatmalar" description="PNR, bilet ve yolculuk hatırlatmaları için altyapı burada toplanacak." />,
     settings: (
       <SettingsPage
@@ -320,6 +387,12 @@ export default function App() {
         setActivePage(pageId);
       }}
       user={user}
+      trips={visibleTrips}
+      availableYears={availableYears}
+      yearFilter={yearFilter}
+      onYearFilterChange={setYearFilter}
+      vehicles={vehicles}
+      companies={companies}
       onLogout={logout}
       loading={loading}
       error={lastError}
