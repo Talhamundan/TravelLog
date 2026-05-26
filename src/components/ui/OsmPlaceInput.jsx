@@ -47,6 +47,7 @@ export default function OsmPlaceInput({ label, value, selectedPlace, savedLocati
 
   const suggestions = [...localSuggestions, ...remoteResults].filter((item, index, list) => list.findIndex((other) => `${other.lat},${other.lng}` === `${item.lat},${item.lng}`) === index).slice(0, 8);
   const invalid = required && touched && text && !selectedPlace?.lat;
+  const showSuggestions = focused && (suggestions.length > 0 || loading);
 
   const selectPlace = (place) => {
     setText(place.name || place.formattedAddress || '');
@@ -58,13 +59,16 @@ export default function OsmPlaceInput({ label, value, selectedPlace, savedLocati
   return (
     <label className={`google-place-field osm-place-field ${invalid ? 'invalid' : ''}`}>
       {label && <span>{label}</span>}
-      <div>
+      <div className="place-input-shell">
         <Search size={17} />
         <input
           value={text}
           placeholder={placeholder}
           onFocus={() => setFocused(true)}
-          onBlur={() => setTouched(true)}
+          onBlur={() => {
+            setTouched(true);
+            window.setTimeout(() => setFocused(false), 120);
+          }}
           onChange={(event) => {
             setText(event.target.value);
             onChange?.(event.target.value);
@@ -85,7 +89,7 @@ export default function OsmPlaceInput({ label, value, selectedPlace, savedLocati
           </button>
         )}
       </div>
-      {focused && suggestions.length > 0 && (
+      {showSuggestions && (
         <div className="location-suggestions osm-suggestions" onMouseDown={(event) => event.preventDefault()}>
           {suggestions.map((item) => (
             <button key={`${item.provider || 'local'}-${item.placeId || item.name}-${item.lat}-${item.lng}`} type="button" onClick={() => selectPlace(item)}>

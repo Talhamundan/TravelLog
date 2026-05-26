@@ -160,7 +160,7 @@ export default function TripFormPage({ initialTrip, companies, vehicles, savedLo
       <div className="wizard-layout">
         <section className="panel wizard-card">
           {step === 0 && <TransportTypeStep form={form} update={update} />}
-          {step === 1 && <RouteStep form={form} updateLocation={updateLocation} update={update} />}
+          {step === 1 && <RouteStep form={form} savedLocations={savedLocations} updateLocation={updateLocation} update={update} />}
           {step === 2 && <DetailsStep form={form} update={update} companies={companies} vehicles={vehicles} />}
           {step === 3 && (
             <CostStep
@@ -236,7 +236,7 @@ function TransportTypeStep({ form, update }) {
   );
 }
 
-function RouteStep({ form, updateLocation, update }) {
+function RouteStep({ form, savedLocations = [], updateLocation, update }) {
   const addWaypoint = () => update('waypoints', [...form.waypoints, { order: form.waypoints.length }]);
   const updateWaypoint = (index, place) =>
     update(
@@ -260,6 +260,7 @@ function RouteStep({ form, updateLocation, update }) {
           label="Başlangıç noktası"
           value={form.fromText}
           selectedPlace={form.fromLocation}
+          savedLocations={savedLocations}
           placeholder="İstanbul Ümraniye Dudullu Otogarı"
           required
           onChange={(text) => updateLocation('from', text, null)}
@@ -269,6 +270,7 @@ function RouteStep({ form, updateLocation, update }) {
           label="Varış noktası"
           value={form.toText}
           selectedPlace={form.toLocation}
+          savedLocations={savedLocations}
           placeholder="Tokat Otogarı"
           required
           onChange={(text) => updateLocation('to', text, null)}
@@ -290,7 +292,8 @@ function RouteStep({ form, updateLocation, update }) {
             <b>{index + 1}</b>
             <OsmPlaceInput
               value={point.name || ''}
-              selectedPlace={point.placeId ? point : null}
+              selectedPlace={point.lat && point.lng ? point : null}
+              savedLocations={savedLocations}
               placeholder="Bursa Şantiye, Ankara AŞTİ..."
               required
               onChange={() => updateWaypoint(index, { order: index })}

@@ -2,11 +2,8 @@
 import { useMemo } from 'react';
 import LeafletRouteMap from './LeafletRouteMap';
 import { formatCurrency, formatKm, minutesToDuration } from '../../utils/formatters';
-import { locationToText } from '../../utils/locations';
 
 export default function TripPreviewMap({ form, distanceKm, durationMinutes, totalCost, routeResult, routeError }) {
-  const fromText = locationToText(form.fromLocation) || form.fromText || 'Başlangıç';
-  const toText = locationToText(form.toLocation) || form.toText || 'Varış';
   const routePreview = useMemo(
     () => ({
       id: 'preview',
@@ -26,8 +23,6 @@ export default function TripPreviewMap({ form, distanceKm, durationMinutes, tota
     <section className="wizard-map-card">
       <div className="wizard-map-canvas">
         <LeafletRouteMap routePreview={routePreview} theme="light" className="wizard-preview-map" />
-        <span className="map-pin from-pin">{fromText.split(' ').slice(0, 2).join(' ')}</span>
-        <span className="map-pin to-pin">{toText.split(' ').slice(0, 2).join(' ')}</span>
       </div>
       <aside className="wizard-map-info">
         <span>Tahmini mesafe</span>

@@ -16,8 +16,8 @@ export default function LeafletRouteMap({ trips = [], trip, routePreview, theme 
   if (!routeItems.length) {
     return (
       <div className={`travel-map-empty ${className}`}>
-        <strong>Konum bilgisi eksik</strong>
-        <span>Bu seyahatte rota çizecek koordinat bulunamadı.</span>
+        <strong>Harita önizlemesi hazır değil</strong>
+        <span>Google Maps yapılandırması yok; OpenStreetMap rotası için başlangıç ve varış seçin.</span>
       </div>
     );
   }
@@ -60,9 +60,9 @@ function RouteLayer({ item, onRouteSelect }) {
         />
       )}
       {isFlight && item.points.length >= 2 && <PlaneMarker points={item.points} color={color} />}
-      {item.origin && <NumberMarker point={item.origin} label="A" color="#22c55e" tooltip="Başlangıç" />}
+      {item.origin && <NumberMarker point={item.origin} label="B" color="#16a34a" tooltip="Başlangıç" />}
       {item.waypoints.map((point, index) => <NumberMarker key={`${item.id}-${index}`} point={point} label={String(index + 1)} color="#3b82f6" tooltip={point.name || `Ara durak ${index + 1}`} />)}
-      {item.destination && <NumberMarker point={item.destination} label="V" color="#ef4444" tooltip="Varış" />}
+      {item.destination && <NumberMarker point={item.destination} label="V" color="#dc2626" tooltip="Varış" />}
     </Fragment>
   );
 }
@@ -84,12 +84,12 @@ function NumberMarker({ point, label, color, tooltip }) {
   const position = toLeafletPoint(point);
   return (
     <>
-      <CircleMarker center={position} radius={13} pathOptions={{ color, fillColor: color, fillOpacity: 0.95, weight: 2 }}>
+      <CircleMarker center={position} radius={11} pathOptions={{ color: '#ffffff', fillColor: color, fillOpacity: 0.94, weight: 2 }}>
         <Tooltip permanent direction="center" opacity={1} className="number-marker-label">{label}</Tooltip>
         <Popup>{tooltip}</Popup>
       </CircleMarker>
       <Marker position={position} opacity={0}>
-        <Tooltip direction="top" offset={[0, -18]} opacity={1}>{tooltip}</Tooltip>
+        <Tooltip direction="top" offset={[0, -16]} opacity={1}>{tooltip}</Tooltip>
       </Marker>
     </>
   );
