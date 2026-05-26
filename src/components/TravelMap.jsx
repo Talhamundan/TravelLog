@@ -1,10 +1,11 @@
 // Dashboard ve Harita sayfası için ortak TravelMapBase üzerine kurulu rota/konum haritası.
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import LeafletRouteMap from './maps/LeafletRouteMap';
 import TravelMapBase from './maps/TravelMapBase';
 import { getStopCoords } from '../utils/cityCoordinates';
 import { locationCity, resolveLocationCoords, routeLabel } from '../utils/location';
 import { formatCurrency, formatKm } from '../utils/formatters';
+import { getRoute } from '../services/osmRouteService';
 
 const transportColors = {
   Uçak: '#38bdf8',
@@ -25,8 +26,12 @@ export default function TravelMap({
   theme = 'dark',
   onThemeChange,
 }) {
-  const routedTrips = useMemo(() => trips.filter((trip) => trip.route?.overviewPath?.length || trip.fromLocation?.lat), [trips]);
+  const [routeCache, setRouteCache] = useState({});
   const visibleTrips = useMemo(() => (showRoutes ? trips.filter((trip) => trip.from && trip.to) : []), [showRoutes, trips]);
+  const routedTrips = useMemo(
+    () => visibleTrips.map((trip) => withCachedRoute(trip, routeCache)).filter(hasRouteMapData),
+    [routeCache, visibleTrips],
+  );
   const routeItems = useMemo(
     () =>
       visibleTrips
@@ -47,6 +52,34 @@ export default function TravelMap({
         .filter((item) => item.from && item.to),
     [visibleTrips],
   );
+
+  useEffect(() => {
+    if (!showRoutes) return undefined;
+    let alive = true;
+    const missingTrips = visibleTrips
+      .map((trip) => ({ trip, key: routeCacheKey(trip), routeRequest: routeRequestFromTrip(trip) }))
+      .filter(({ trip, key, routeRequest }) => key && routeRequest && !trip.route?.overviewPath?.length && !trip.route?.overviewPolyline && !(key in routeCache))
+      .slice(0, 12);
+
+    if (!missingTrips.length) return undefined;
+
+    missingTrips.forEach(({ key, routeRequest }) => {
+      getRoute(routeRequest)
+        .then((route) => {
+          if (!alive) return;
+          setRouteCache((current) => ({ ...current, [key]: route }));
+        })
+        .catch((error) => {
+          console.warn('Dashboard route calculation skipped', error);
+          if (!alive) return;
+          setRouteCache((current) => ({ ...current, [key]: null }));
+        });
+    });
+
+    return () => {
+      alive = false;
+    };
+  }, [routeCache, showRoutes, visibleTrips]);
 
   const routes = routeItems.map((item) => ({
     id: item.trip.id || routeLabel(item.trip),
@@ -158,4 +191,64 @@ export default function TravelMap({
       )}
     </div>
   );
+}
+
+function hasRouteMapData(trip = {}) {
+  return Boolean(
+    trip.route?.overviewPath?.length ||
+    trip.route?.overviewPolyline ||
+    (trip.fromLocation?.lat && trip.toLocation?.lat) ||
+    (trip.fromCoords && trip.toCoords),
+  );
+}
+
+function withCachedRoute(trip, routeCache) {
+  const key = routeCacheKey(trip);
+  const cachedRoute = key ? routeCache[key] : null;
+  if (!cachedRoute || trip.route?.overviewPath?.length || trip.route?.overviewPolyline) return trip;
+  return { ...trip, route: cachedRoute };
+}
+
+function routeCacheKey(trip = {}) {
+  const request = routeRequestFromTrip(trip);
+  if (!request) return '';
+  return [
+    trip.transportType || 'Diğer',
+    pointKey(request.origin),
+    ...request.waypoints.map(pointKey),
+    pointKey(request.destination),
+  ].join('|');
+}
+
+function routeRequestFromTrip(trip = {}) {
+  const origin = pointFromLocation(trip.fromLocation) || pointFromCoords(resolveLocationCoords(trip.fromLocation || trip.from, trip.fromCoords));
+  const destination = pointFromLocation(trip.toLocation) || pointFromCoords(resolveLocationCoords(trip.toLocation || trip.to, trip.toCoords));
+  if (!origin || !destination) return null;
+  const waypoints = (trip.waypoints || []).map(pointFromLocation).filter(Boolean);
+  return {
+    origin,
+    destination,
+    waypoints,
+    transportType: trip.transportType || 'Araç',
+  };
+}
+
+function pointFromLocation(location) {
+  if (!location?.lat || !location?.lng) return null;
+  const lat = Number(location.lat);
+  const lng = Number(location.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { ...location, lat, lng };
+}
+
+function pointFromCoords(coords) {
+  if (!Array.isArray(coords) || coords.length !== 2) return null;
+  const lat = Number(coords[0]);
+  const lng = Number(coords[1]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { lat, lng };
+}
+
+function pointKey(point) {
+  return `${Number(point.lat).toFixed(5)},${Number(point.lng).toFixed(5)}`;
 }

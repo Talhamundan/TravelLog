@@ -89,8 +89,39 @@ export function calculateDistanceAndDuration(route) {
 
 export const decodeOverviewPolyline = (polylineOrPath) => {
   if (Array.isArray(polylineOrPath)) return polylineOrPath;
-  return [];
+  if (typeof polylineOrPath !== 'string' || !polylineOrPath) return [];
+  let index = 0;
+  let lat = 0;
+  let lng = 0;
+  const points = [];
+  while (index < polylineOrPath.length) {
+    const nextLat = decodePolylineValue(polylineOrPath, index);
+    index = nextLat.index;
+    const nextLng = decodePolylineValue(polylineOrPath, index);
+    index = nextLng.index;
+    lat += nextLat.value;
+    lng += nextLng.value;
+    points.push({ lat: lat / 1e5, lng: lng / 1e5 });
+  }
+  return points;
 };
+
+function decodePolylineValue(polyline, startIndex) {
+  let result = 0;
+  let shift = 0;
+  let index = startIndex;
+  let byte = 0;
+  do {
+    byte = polyline.charCodeAt(index) - 63;
+    index += 1;
+    result |= (byte & 0x1f) << shift;
+    shift += 5;
+  } while (byte >= 0x20 && index < polyline.length);
+  return {
+    value: result & 1 ? ~(result >> 1) : result >> 1,
+    index,
+  };
+}
 
 function buildAirRoute(points) {
   const distanceKm = points.slice(0, -1).reduce((sum, point, index) => sum + haversineDistanceKm([point.lat, point.lng], [points[index + 1].lat, points[index + 1].lng]), 0);

@@ -2,6 +2,7 @@ import { Fragment, useEffect } from 'react';
 import { CircleMarker, MapContainer, Marker, Polyline, Popup, TileLayer, Tooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { defaultTurkeyCenter } from '../../utils/cityCoordinates';
+import { resolveLocationCoords } from '../../utils/location';
 import { decodeOverviewPolyline, getRouteColor } from '../../services/osmRouteService';
 
 const tiles = {
@@ -111,13 +112,13 @@ function FitBounds({ points }) {
 
 function tripToRouteItem(trip) {
   if (!trip) return null;
-  const origin = pointFromLocation(trip.fromLocation || trip.from);
-  const destination = pointFromLocation(trip.toLocation || trip.to);
+  const origin = pointFromLocation(trip.fromLocation || trip.from) || pointFromCoords(resolveLocationCoords(trip.fromLocation || trip.from, trip.fromCoords));
+  const destination = pointFromLocation(trip.toLocation || trip.to) || pointFromCoords(resolveLocationCoords(trip.toLocation || trip.to, trip.toCoords));
   const waypoints = (trip.waypoints || []).map(pointFromLocation).filter(Boolean);
   const points = trip.transportType === 'Uçak'
     ? [origin, ...waypoints, destination].filter(Boolean)
-    : trip.route?.overviewPath?.length
-      ? decodeOverviewPolyline(trip.route.overviewPath)
+    : trip.route?.overviewPath?.length || trip.route?.overviewPolyline
+      ? decodeOverviewPolyline(trip.route.overviewPath?.length ? trip.route.overviewPath : trip.route.overviewPolyline)
       : [origin, ...waypoints, destination].filter(Boolean);
   if (!points.length) return null;
   return {
@@ -145,6 +146,14 @@ function normalizeRoutePreview(routePreview) {
 function pointFromLocation(location) {
   if (!location?.lat || !location?.lng) return null;
   return { ...location, lat: Number(location.lat), lng: Number(location.lng) };
+}
+
+function pointFromCoords(coords) {
+  if (!Array.isArray(coords) || coords.length !== 2) return null;
+  const lat = Number(coords[0]);
+  const lng = Number(coords[1]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { lat, lng };
 }
 
 function toLeafletPoint(point) {

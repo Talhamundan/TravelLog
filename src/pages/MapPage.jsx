@@ -90,8 +90,8 @@ export default function MapPage({ trips, savedLocations = [], onSaveLocation, on
             savedLocations={savedLocations}
             selectedLocation={hasDraftCoords ? draftLocation : null}
             showRoutes={mode === 'routes'}
-            theme={mapTheme}
-            onThemeChange={setMapTheme}
+            theme={mode === 'routes' ? 'dark' : mapTheme}
+            onThemeChange={mode === 'routes' ? undefined : setMapTheme}
             onLocationPick={(coords) =>
               {
                 setMode('locations');
