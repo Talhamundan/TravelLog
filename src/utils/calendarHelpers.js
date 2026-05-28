@@ -1,16 +1,10 @@
-import { formatCurrency, formatKm, minutesToDuration, monthName } from './formatters';
-import { locationCity, locationLabel, routeLabel } from './location';
+import { formatCurrency, formatKm, isValidDisplayDate, minutesToDuration, monthName } from './formatters';
+import { locationCity, locationLabel } from './location';
 import { tripProviderLabel } from './tripDisplay';
+import { getTransportColor, normalizeTransportType, transportColors } from '../constants/transport';
+import { getTripRouteTitle } from './routeDisplay';
 
-export const transportColors = {
-  Uçak: '#38bdf8',
-  Otobüs: '#a855f7',
-  Araç: '#f59e0b',
-  Tren: '#22c55e',
-  Feribot: '#14b8a6',
-  Taksi: '#f97316',
-  Diğer: '#ef4444',
-};
+export { transportColors };
 
 export const calendarViews = [
   { id: 'month', label: 'Ay' },
@@ -43,25 +37,25 @@ export const tripTotalCost = (trip) =>
 
 export const toCalendarEvent = (trip) => {
   const date = tripDate(trip);
-  const transportType = trip.transportType || 'Diğer';
+  const transportType = normalizeTransportType(trip.transportType);
   return {
     id: trip.id,
     trip,
     date,
     dateKey: isoDate(date),
-    title: trip.title || routeLabel(trip),
-    route: routeLabel(trip),
+    title: getTripRouteTitle(trip),
+    route: getTripRouteTitle(trip),
     time: tripTime(trip),
     transportType,
     company: tripProviderLabel(trip),
-    color: transportColors[transportType] || transportColors.Diğer,
+    color: getTransportColor(transportType),
   };
 };
 
 export const buildCalendarEvents = (trips = []) =>
   trips
     .map(toCalendarEvent)
-    .filter((event) => event.date && !Number.isNaN(event.date.getTime()))
+    .filter((event) => event.date && !Number.isNaN(event.date.getTime()) && isValidDisplayDate(event.date))
     .sort((a, b) => a.date - b.date || a.time.localeCompare(b.time));
 
 export const getMonthGrid = (currentDate) => {
@@ -115,7 +109,9 @@ export const calendarFilterOptions = (events = []) => {
       events.flatMap(({ trip }) => tripCityTexts(trip)),
     ),
   ].sort((a, b) => String(a).localeCompare(String(b), 'tr'));
-  const months = Array.from({ length: 12 }, (_, index) => ({ value: index, label: monthName(index) }));
+  const months = [...new Set(events.map((event) => event.date.getMonth()))]
+    .sort((a, b) => a - b)
+    .map((value) => ({ value, label: monthName(value) }));
   return { years, companies, transports, cities, months };
 };
 

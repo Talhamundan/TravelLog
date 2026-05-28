@@ -1,14 +1,15 @@
 // Dashboard ve rapor ekranları için seyahat analitik hesaplamaları.
 import { monthName } from './formatters';
-import { routeLabel } from './location';
 import { tripProviderLabel } from './tripDisplay';
+import { normalizeTransportType } from '../constants/transport';
+import { getTripRouteTitle } from './routeDisplay';
 
 export const toNumber = (value) => Number.parseFloat(value) || 0;
 const plateKey = (value = '') => String(value).toLocaleUpperCase('tr-TR').replace(/[^0-9A-Z]/g, '');
 
 export const sumBy = (items, key) => items.reduce((total, item) => total + toNumber(item[key]), 0);
 
-export const routeKey = (trip) => routeLabel(trip);
+export const routeKey = (trip) => getTripRouteTitle(trip);
 
 export const groupTrips = (trips, getKey) =>
   trips.reduce((acc, trip) => {
@@ -46,7 +47,7 @@ export const createStats = (trips, now = new Date()) => {
   const totalCost = sumBy(trips, 'totalCost');
   const top = (rows) => rows[0]?.name || '0';
   const companies = groupedSummary(trips, tripProviderLabel);
-  const transports = groupedSummary(trips, (trip) => trip.transportType || 'Diğer');
+  const transports = groupedSummary(trips, (trip) => normalizeTransportType(trip.transportType));
   const routes = groupedSummary(trips, routeKey);
 
   return {
@@ -87,7 +88,7 @@ export const createChartData = (trips) => {
 
   return {
     monthly,
-    transport: groupedSummary(trips, (trip) => trip.transportType || 'Diğer').map((item) => ({ name: item.name, value: item.count, ...item })),
+    transport: groupedSummary(trips, (trip) => normalizeTransportType(trip.transportType)).map((item) => ({ name: item.name, value: item.count, ...item })),
     companies: groupedSummary(trips, tripProviderLabel).map((item) => ({ name: item.name, value: item.count, ...item })),
     years: Object.values(byYear).sort((a, b) => a.name.localeCompare(b.name)),
     routes: groupedSummary(trips, routeKey).slice(0, 10).map((item) => ({ ...item, value: item.count })),
@@ -101,10 +102,10 @@ export const buildReports = (trips) => ({
     return Number.isNaN(date.getTime()) ? 'Belirsiz' : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
   }),
   companies: groupedSummary(trips, tripProviderLabel),
-  transports: groupedSummary(trips, (trip) => trip.transportType || 'Diğer'),
+  transports: groupedSummary(trips, (trip) => normalizeTransportType(trip.transportType)),
   routes: groupedSummary(trips, routeKey),
   vehicleCosts: groupedSummary(
-    trips.filter((trip) => trip.transportType === 'Araç'),
+    trips.filter((trip) => normalizeTransportType(trip.transportType) === 'Araç'),
     (trip) => trip.vehicleName || trip.company || routeKey(trip),
   ),
 });
@@ -147,7 +148,7 @@ export const getMonthlyStats = (trips = [], year = new Date().getFullYear(), mon
   return createStats(rows, new Date(Number(year), Number(month), 1));
 };
 
-export const getMostUsedTransport = (trips = []) => groupedSummary(trips, (trip) => trip.transportType || 'Diğer')[0] || null;
+export const getMostUsedTransport = (trips = []) => groupedSummary(trips, (trip) => normalizeTransportType(trip.transportType))[0] || null;
 
 export const getMostUsedCompany = (trips = []) => groupedSummary(trips, tripProviderLabel)[0] || null;
 

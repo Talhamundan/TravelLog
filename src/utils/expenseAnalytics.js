@@ -1,16 +1,18 @@
 import { formatCurrency, formatKm, monthName } from './formatters';
-import { locationCity, routeLabel } from './location';
+import { locationCity } from './location';
 import { tripProviderLabel } from './tripDisplay';
 import { isoDate, makeLocalDate, tripDate, tripTotalCost } from './calendarHelpers';
+import { getTransportColor, normalizeTransportType } from '../constants/transport';
+import { getTripRouteTitle } from './routeDisplay';
 
 const categoryColors = {
-  Uçak: '#3b82f6',
-  Otobüs: '#8b5cf6',
+  Uçak: getTransportColor('Uçak'),
+  Otobüs: getTransportColor('Otobüs'),
   Yakıt: '#f59e0b',
   'Yol/Köprü': '#fb923c',
   Otopark: '#14b8a6',
-  Tren: '#22c55e',
-  Feribot: '#06b6d4',
+  Tren: getTransportColor('Tren'),
+  Feribot: getTransportColor('Feribot'),
   Yemek: '#ec4899',
   Konaklama: '#6366f1',
   Diğer: '#ef4444',
@@ -54,12 +56,12 @@ export const buildExpensesFromTrips = (trips = [], manualExpenses = []) => {
           category,
           amount,
           currency: trip.currency || 'TRY',
-          description: `${routeLabel(trip)} · ${typeof source.label === 'function' ? source.label(trip) : source.label}`,
+          description: `${getTripRouteTitle(trip)} · ${typeof source.label === 'function' ? source.label(trip) : source.label}`,
           company: trip.company || '',
           vehiclePlate: trip.vehiclePlate || trip.plate || '',
           city: [locationCity(trip.from) || trip.fromText || trip.from, locationCity(trip.to) || trip.toText || trip.to].filter(Boolean).join(' → '),
-          transportType: trip.transportType || 'Diğer',
-          route: routeLabel(trip),
+          transportType: normalizeTransportType(trip.transportType),
+          route: getTripRouteTitle(trip),
           expenseDate: date ? isoDate(date) : '',
           trip,
         };
@@ -81,8 +83,8 @@ export const buildExpensesFromTrips = (trips = [], manualExpenses = []) => {
       company: expense.company || trip?.company || '',
       vehiclePlate: expense.vehiclePlate || trip?.vehiclePlate || trip?.plate || '',
       city: expense.city || (trip ? [locationCity(trip.from) || trip.fromText || trip.from, locationCity(trip.to) || trip.toText || trip.to].filter(Boolean).join(' → ') : ''),
-      transportType: expense.transportType || trip?.transportType || '',
-      route: trip ? routeLabel(trip) : expense.city || '-',
+      transportType: expense.transportType ? normalizeTransportType(expense.transportType) : trip?.transportType ? normalizeTransportType(trip.transportType) : '',
+      route: trip ? getTripRouteTitle(trip) : expense.city || '-',
       expenseDate: date ? isoDate(date) : '',
       trip,
     };
@@ -127,11 +129,11 @@ const groupSum = (items, selector) =>
     }, {}),
   ).sort((a, b) => b.value - a.value);
 
-export const buildExpenseFilterOptions = (expenses = [], trips = [], vehicles = []) => ({
+export const buildExpenseFilterOptions = (expenses = []) => ({
   categories: [...new Set(expenses.map((expense) => expense.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr')),
-  transports: [...new Set(trips.map((trip) => trip.transportType).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr')),
+  transports: [...new Set(expenses.map((expense) => expense.transportType).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr')),
   companies: [...new Set(expenses.map((expense) => expense.company).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr')),
-  vehicles: [...new Set([...expenses.map((expense) => expense.vehiclePlate), ...vehicles.map((vehicle) => vehicle.plate)].filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr')),
+  vehicles: [...new Set(expenses.map((expense) => expense.vehiclePlate).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr')),
   cities: [...new Set(expenses.map((expense) => expense.city).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr')),
 });
 
@@ -184,7 +186,7 @@ export const buildExpenseAnalytics = (expenses = [], trips = []) => {
   );
   const routeKmCost = Object.values(
     trips.reduce((acc, trip) => {
-      const name = routeLabel(trip);
+      const name = getTripRouteTitle(trip);
       acc[name] = acc[name] || { name, cost: 0, km: 0 };
       acc[name].cost += tripTotalCost(trip);
       acc[name].km += Number(trip.distanceKm) || 0;

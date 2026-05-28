@@ -1,6 +1,8 @@
 import { toNumber } from './analytics';
-import { locationCoords, locationLabel, resolveLocationCoords, routeLabel } from './location';
+import { locationCoords, locationLabel, resolveLocationCoords } from './location';
 import { tripProviderLabel } from './tripDisplay';
+import { normalizeTransportType } from '../constants/transport';
+import { getTripRouteTitle } from './routeDisplay';
 
 const costKeys = ['ticketPrice', 'fuelCost', 'roadCost', 'bridgeCost', 'parkingCost', 'otherCost'];
 
@@ -12,6 +14,7 @@ export const normalizeTrip = (trip = {}) => {
   const fromCoords = resolveLocationCoords(fromLocation, trip.fromCoords) || locationCoords(fromLocation);
   const toCoords = resolveLocationCoords(toLocation, trip.toCoords) || locationCoords(toLocation);
   const totalCost = toNumber(trip.totalCost) || costKeys.reduce((sum, key) => sum + toNumber(trip[key]), 0);
+  const transportType = normalizeTransportType(trip.transportType);
   const distanceKm = toNumber(trip.distanceKm);
   const costPerKm = distanceKm > 0 ? totalCost / distanceKm : 0;
 
@@ -27,7 +30,7 @@ export const normalizeTrip = (trip = {}) => {
     toCoords,
     routeTitle: `${fromLabel} → ${toLabel}`,
     title: trip.title || `${fromLabel} → ${toLabel}`,
-    transportType: trip.transportType || 'Diğer',
+    transportType,
     company: trip.company || '',
     providerLabel: tripProviderLabel(trip),
     distanceKm,
@@ -42,7 +45,7 @@ export const normalizeTrip = (trip = {}) => {
 
 export const normalizeTrips = (trips = []) => trips.map(normalizeTrip);
 
-export const normalizedRouteLabel = (trip) => trip?.routeTitle || routeLabel(trip);
+export const normalizedRouteLabel = (trip) => trip?.routeTitle || getTripRouteTitle(trip);
 
 export const getTripOrigin = (trip = {}) => trip.fromLocation || trip.from || null;
 
@@ -62,7 +65,7 @@ export const getTripDisplayRoute = (trip = {}) => {
     ...getTripWaypoints(trip).map(locationLabel),
     locationLabel(getTripDestination(trip)),
   ].filter((item) => item && item !== '-');
-  return parts.length ? parts.join(' → ') : routeLabel(trip);
+  return parts.length ? parts.join(' → ') : getTripRouteTitle(trip);
 };
 
-export const hasGoogleRoute = (trip = {}) => ['google', 'osrm', 'airline-estimate'].includes(trip.route?.provider) && Boolean(trip.route?.overviewPolyline || trip.route?.overviewPath?.length);
+export const hasRouteGeometry = (trip = {}) => ['osrm', 'airline-estimate'].includes(trip.route?.provider) && Boolean(trip.route?.overviewPolyline || trip.route?.overviewPath?.length);

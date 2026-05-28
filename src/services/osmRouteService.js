@@ -1,15 +1,7 @@
 import { haversineDistanceKm } from '../utils/distance';
+import { getTransportColor, normalizeTransportType } from '../constants/transport';
 
-const transportColors = {
-  Araç: '#f59e0b',
-  Otobüs: '#a855f7',
-  Uçak: '#38bdf8',
-  Tren: '#22c55e',
-  Feribot: '#14b8a6',
-  Diğer: '#ef4444',
-};
-
-export const getRouteColor = (transportType) => transportColors[transportType] || transportColors.Diğer;
+export const getRouteColor = (transportType) => getTransportColor(transportType);
 
 export const getTravelModeByTransportType = (transportType) => {
   if (transportType === 'Yaya') return 'foot';
@@ -38,8 +30,9 @@ export async function getRoute({ origin, destination, waypoints = [], transportT
     throw new Error('Rota için başlangıç ve varış konumu zorunlu.');
   }
 
+  const normalizedTransportType = normalizeTransportType(transportType);
   const points = [origin, ...waypoints, destination].filter((point) => point?.lat && point?.lng);
-  if (transportType === 'Uçak') return buildAirRoute(points);
+  if (normalizedTransportType === 'Uçak') return buildAirRoute(points);
 
   const coordinates = points.map((point) => `${Number(point.lng)},${Number(point.lat)}`).join(';');
   const url = new URL(`https://router.project-osrm.org/route/v1/driving/${coordinates}`);
@@ -57,7 +50,7 @@ export async function getRoute({ origin, destination, waypoints = [], transportT
   const overviewPath = route.geometry.coordinates.map(([lng, lat]) => ({ lat, lng }));
   return {
     provider: 'osrm',
-    travelMode: getTravelModeByTransportType(transportType),
+    travelMode: getTravelModeByTransportType(normalizedTransportType),
     distanceText: `${(route.distance / 1000).toLocaleString('tr-TR', { maximumFractionDigits: 1 })} km`,
     distanceMeters: Math.round(route.distance),
     durationText: `${Math.round(route.duration / 60)} dk`,

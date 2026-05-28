@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { CalendarDays, Sparkles } from 'lucide-react';
 import EmptyState from '../components/EmptyState';
 import TravelCalendar from '../components/calendar/TravelCalendar';
@@ -35,6 +35,17 @@ export default function CalendarPage({ trips, loading, onNewTrip, onSeed, onEdit
   const upcoming = useMemo(() => upcomingEvents(filteredEvents, 7), [filteredEvents]);
 
   const changeFilter = (key, value) => setFilters((current) => ({ ...current, [key]: value }));
+
+  useEffect(() => {
+    setFilters((current) => ({
+      ...current,
+      transportType: current.transportType && !filterOptions.transports.includes(current.transportType) ? '' : current.transportType,
+      company: current.company && !filterOptions.companies.includes(current.company) ? '' : current.company,
+      city: current.city && !filterOptions.cities.includes(current.city) ? '' : current.city,
+      year: current.year && !filterOptions.years.map(String).includes(current.year) ? '' : current.year,
+      month: current.month !== '' && current.month != null && !filterOptions.months.map((item) => String(item.value)).includes(String(current.month)) ? '' : current.month,
+    }));
+  }, [filterOptions]);
 
   if (loading && !trips.length) {
     return (

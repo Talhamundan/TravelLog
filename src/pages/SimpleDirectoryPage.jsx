@@ -7,7 +7,7 @@ import { formatCurrency, formatKm } from '../utils/formatters';
 import { formatDate } from '../utils/formatters';
 import { formatPlate } from '../utils/plateFormatter';
 import CustomSelect from '../components/ui/CustomSelect';
-import { routeLabel } from '../utils/location';
+import { getTripRouteTitle } from '../utils/routeDisplay';
 
 const fuelTypes = ['Benzin', 'Dizel', 'LPG', 'Hibrit', 'Elektrik', 'Diğer'];
 const companyCategories = ['Otobüs', 'Uçak', 'Tren', 'Araç kiralama', 'Diğer'];
@@ -153,7 +153,7 @@ export default function SimpleDirectoryPage({ title, description, items, fields,
                   selectedStats.trips.slice(0, 8).map((trip) => (
                     <article key={trip.id}>
                       <div>
-                        <strong>{routeLabel(trip)}</strong>
+                        <strong>{getTripRouteTitle(trip)}</strong>
                         <span>{formatDate(trip.date)} · {trip.transportType}</span>
                       </div>
                       <b>{formatKm(trip.distanceKm)}</b>

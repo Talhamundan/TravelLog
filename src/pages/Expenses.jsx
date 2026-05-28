@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Download, Filter, Plus, ReceiptText, Sparkles } from 'lucide-react';
 import EmptyState from '../components/EmptyState';
 import ExpenseCharts from '../components/expenses/ExpenseCharts';
@@ -9,7 +9,6 @@ import {
   buildExpenseAnalytics,
   buildExpenseFilterOptions,
   buildExpensesFromTrips,
-  expenseCategories,
   filterExpenses,
 } from '../utils/expenseAnalytics';
 
@@ -43,9 +42,20 @@ export default function ExpensesPage({
   const normalizedExpenses = useMemo(() => buildExpensesFromTrips(trips, expenses), [trips, expenses]);
   const filteredExpenses = useMemo(() => filterExpenses(normalizedExpenses, filters), [normalizedExpenses, filters]);
   const analytics = useMemo(() => buildExpenseAnalytics(filteredExpenses, trips), [filteredExpenses, trips]);
-  const options = useMemo(() => buildExpenseFilterOptions(normalizedExpenses, trips, vehicles), [normalizedExpenses, trips, vehicles]);
+  const options = useMemo(() => buildExpenseFilterOptions(normalizedExpenses), [normalizedExpenses]);
 
   const changeFilter = (key, value) => setFilters((current) => ({ ...current, [key]: value }));
+
+  useEffect(() => {
+    setFilters((current) => ({
+      ...current,
+      category: current.category && !options.categories.includes(current.category) ? '' : current.category,
+      transportType: current.transportType && !options.transports.includes(current.transportType) ? '' : current.transportType,
+      company: current.company && !options.companies.includes(current.company) ? '' : current.company,
+      vehicle: current.vehicle && !options.vehicles.includes(current.vehicle) ? '' : current.vehicle,
+      city: current.city && !options.cities.includes(current.city) ? '' : current.city,
+    }));
+  }, [options]);
 
   if (loading && !trips.length) {
     return (
@@ -109,7 +119,7 @@ export default function ExpensesPage({
             <input type="date" value={filters.endDate} onChange={(event) => changeFilter('endDate', event.target.value)} />
             <select value={filters.category} onChange={(event) => changeFilter('category', event.target.value)}>
               <option value="">Tüm kategoriler</option>
-              {[...new Set([...expenseCategories, ...options.categories])].map((item) => <option key={item} value={item}>{item}</option>)}
+              {options.categories.map((item) => <option key={item} value={item}>{item}</option>)}
             </select>
             <select value={filters.transportType} onChange={(event) => changeFilter('transportType', event.target.value)}>
               <option value="">Tüm ulaşım</option>

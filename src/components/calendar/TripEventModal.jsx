@@ -2,15 +2,16 @@ import { ArrowRight, CalendarDays, Edit3, MapPin } from 'lucide-react';
 import TripMap from '../TripMap';
 import { eventMeta, tripTime } from '../../utils/calendarHelpers';
 import { formatDate } from '../../utils/formatters';
-import { locationLabel, routeLabel } from '../../utils/location';
+import { locationLabel } from '../../utils/location';
 import Modal from '../ui/Modal';
+import { getTripRouteTitle } from '../../utils/routeDisplay';
 
 export default function TripEventModal({ trip, onClose, onEdit, onDetail }) {
   if (!trip) return null;
   const meta = eventMeta(trip);
 
   return (
-    <Modal open title={routeLabel(trip)} subtitle="Takvim detayı" className="event-modal" onClose={onClose}>
+    <Modal open title={getTripRouteTitle(trip)} subtitle="Takvim detayı" className="event-modal" onClose={onClose}>
         <div className="event-detail-grid">
           <Info label="Başlangıç" value={locationLabel(trip.from) || trip.fromText || trip.from} />
           <Info label="Varış" value={locationLabel(trip.to) || trip.toText || trip.to} />

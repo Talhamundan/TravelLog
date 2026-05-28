@@ -1,7 +1,7 @@
 import { Save, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { expenseCategories } from '../../utils/expenseAnalytics';
-import { routeLabel } from '../../utils/location';
+import { getTripRouteTitle } from '../../utils/routeDisplay';
 
 const initialForm = {
   category: 'Diğer',
@@ -18,7 +18,7 @@ const initialForm = {
 
 export default function NewExpenseModal({ open, trips, onClose, onSave }) {
   const [form, setForm] = useState(initialForm);
-  const tripOptions = useMemo(() => trips.map((trip) => ({ id: trip.id, label: routeLabel(trip), trip })), [trips]);
+  const tripOptions = useMemo(() => trips.map((trip) => ({ id: trip.id, label: getTripRouteTitle(trip), trip })), [trips]);
 
   if (!open) return null;
 
@@ -30,7 +30,7 @@ export default function NewExpenseModal({ open, trips, onClose, onSave }) {
         tripId: value,
         company: selected?.company || current.company,
         vehiclePlate: selected?.vehiclePlate || selected?.plate || current.vehiclePlate,
-        city: selected ? routeLabel(selected) : current.city,
+        city: selected ? getTripRouteTitle(selected) : current.city,
       }));
       return;
     }

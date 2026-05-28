@@ -3,6 +3,7 @@ import Charts from '../components/Charts';
 import EmptyState from '../components/EmptyState';
 import { buildReports } from '../utils/analytics';
 import { formatCurrency, formatKm } from '../utils/formatters';
+import { getTransportColor, transportTypes } from '../constants/transport';
 
 export default function ReportsPage({ trips, onNewTrip, onSeed }) {
   const reports = buildReports(trips);
@@ -21,7 +22,7 @@ export default function ReportsPage({ trips, onNewTrip, onSeed }) {
           <ReportSection title="Yıllık özet" rows={reports.yearly} />
           <ReportSection title="Aylık özet" rows={reports.monthly} />
           <ReportSection title="Firma bazlı özet" rows={reports.companies} />
-          <ReportSection title="Ulaşım türü bazlı özet" rows={reports.transports} />
+          <ReportSection title="Ulaşım türü bazlı özet" rows={reports.transports} transportRows />
           <ReportSection title="Rota bazlı özet" rows={reports.routes} />
           <ReportSection title="Araç seyahati maliyet analizi" rows={reports.vehicleCosts} showVehicleCosts />
         </>
@@ -32,7 +33,7 @@ export default function ReportsPage({ trips, onNewTrip, onSeed }) {
   );
 }
 
-function ReportSection({ title, rows, showVehicleCosts = false }) {
+function ReportSection({ title, rows, showVehicleCosts = false, transportRows = false }) {
   return (
     <section className="panel report-section">
       <h2>{title}</h2>
@@ -52,7 +53,11 @@ function ReportSection({ title, rows, showVehicleCosts = false }) {
           <tbody>
             {rows.map((row) => (
               <tr key={row.name}>
-                <td>{row.name}</td>
+                <td>
+                  {transportRows && transportTypes.includes(row.name) ? (
+                    <span className="transport-pill" style={{ '--transport-color': getTransportColor(row.name) }}>{row.name}</span>
+                  ) : row.name}
+                </td>
                 <td>{row.count}</td>
                 <td>{formatKm(row.km)}</td>
                 <td>{formatCurrency(row.cost)}</td>

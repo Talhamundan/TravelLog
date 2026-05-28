@@ -4,8 +4,16 @@ export const formatCurrency = (amount = 0, currency = 'TRY') =>
 
 export const formatKm = (value = 0) => `${new Intl.NumberFormat('tr-TR').format(Number(value) || 0)} km`;
 
+export const isValidDisplayDate = (value) => {
+  if (!value) return false;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return false;
+  const year = date.getFullYear();
+  return year >= 1900 && year <= 2100;
+};
+
 export const formatDate = (value) => {
-  if (!value) return '-';
+  if (!isValidDisplayDate(value)) return 'Tarih eksik/hatalı';
   return new Intl.DateTimeFormat('tr-TR', { dateStyle: 'medium' }).format(new Date(value));
 };
 

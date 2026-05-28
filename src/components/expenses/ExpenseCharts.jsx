@@ -12,6 +12,7 @@ import {
   YAxis,
 } from 'recharts';
 import { formatCurrency } from '../../utils/formatters';
+import { getTransportColor } from '../../constants/transport';
 
 const tooltipStyle = {
   background: 'rgba(15, 23, 42, 0.96)',
@@ -73,7 +74,9 @@ export default function ExpenseCharts({ analytics }) {
             <XAxis dataKey="name" stroke="#8ea3bd" />
             <YAxis stroke="#8ea3bd" />
             <Tooltip formatter={(value) => formatCurrency(value)} contentStyle={tooltipStyle} />
-            <Bar dataKey="value" fill="#3b82f6" radius={[8, 8, 0, 0]} />
+            <Bar dataKey="value" radius={[8, 8, 0, 0]}>
+              {transport.map((entry) => <Cell key={entry.name} fill={getTransportColor(entry.name)} />)}
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       </article>

@@ -1,14 +1,18 @@
 // Seyahatleri filtrelenebilir tablo halinde listeler ve aksiyonları dışarıya iletir.
 import { Download, Eye, FileSpreadsheet, Filter, Pencil, RotateCcw, Search, SlidersHorizontal, Trash2, Upload, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import EmptyState from '../components/EmptyState';
+import TravelMap from '../components/TravelMap';
 import CustomSelect from '../components/ui/CustomSelect';
 import { exportTripsToCsv } from '../utils/exporters';
 import { downloadTripImportTemplate, exportTripsToXlsx, parseTripWorkbook } from '../utils/excelTransfer';
-import { formatCurrency, formatDate, formatKm, minutesToDuration } from '../utils/formatters';
+import { formatCurrency, formatDate, formatKm, isValidDisplayDate, minutesToDuration } from '../utils/formatters';
 import { sumBy, toNumber } from '../utils/analytics';
-import { locationLabel, routeLabel } from '../utils/location';
+import { locationLabel } from '../utils/location';
 import { tripProviderLabel } from '../utils/tripDisplay';
+import { getTransportColor, normalizeTransportType } from '../constants/transport';
+import { getTripRouteSubtitle, getTripRouteTitle } from '../utils/routeDisplay';
+import { includesSearchTerm } from '../utils/search';
 
 const initialFilters = {
   search: '',
@@ -30,12 +34,14 @@ export default function TripsPage({ trips, onEdit, onDelete, onDetail, onNewTrip
   const [filters, setFilters] = useState(initialFilters);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [importState, setImportState] = useState({ open: false, loading: false, message: '' });
+  const [selectedMapTripId, setSelectedMapTripId] = useState('');
+  const mapPanelRef = useRef(null);
 
-  const transportTypes = useMemo(() => uniqueTripValues(trips, 'transportType'), [trips]);
+  const transportTypes = useMemo(() => [...new Set(trips.map((trip) => normalizeTransportType(trip.transportType)).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr')), [trips]);
   const companies = useMemo(() => uniqueTripValues(trips, 'company'), [trips]);
-  const years = useMemo(() => [...new Set(trips.map((trip) => new Date(trip.date).getFullYear()).filter(Boolean))].sort((a, b) => b - a), [trips]);
+  const years = useMemo(() => [...new Set(trips.filter((trip) => isValidDisplayDate(trip.date)).map((trip) => new Date(trip.date).getFullYear()))].sort((a, b) => b - a), [trips]);
   const months = useMemo(
-    () => [...new Set(trips.map((trip) => new Date(trip.date).getMonth() + 1).filter((month) => month >= 1 && month <= 12))].sort((a, b) => a - b),
+    () => [...new Set(trips.filter((trip) => isValidDisplayDate(trip.date)).map((trip) => new Date(trip.date).getMonth() + 1).filter((month) => month >= 1 && month <= 12))].sort((a, b) => a - b),
     [trips],
   );
 
@@ -54,14 +60,29 @@ export default function TripsPage({ trips, onEdit, onDelete, onDetail, onNewTrip
     return trips
       .filter((trip) => {
         const date = new Date(trip.date);
-        const matchesSearch = !term || [trip.title, trip.from, trip.to, tripProviderLabel(trip), trip.notes, trip.pnr].join(' ').toLocaleLowerCase('tr-TR').includes(term);
-        const matchesYear = !filters.year || date.getFullYear() === Number(filters.year);
-        const matchesMonth = !filters.month || date.getMonth() + 1 === Number(filters.month);
+        const matchesSearch = !term || includesSearchTerm([
+          getTripRouteTitle(trip),
+          trip.title,
+          trip.from,
+          trip.to,
+          tripProviderLabel(trip),
+          trip.company,
+          trip.plate,
+          trip.vehiclePlate,
+          trip.vehicleName,
+          trip.licensePlate,
+          trip.notes,
+          trip.pnr,
+          trip.ticketNo,
+        ], term);
+        const validDate = isValidDisplayDate(trip.date);
+        const matchesYear = !filters.year || (validDate && date.getFullYear() === Number(filters.year));
+        const matchesMonth = !filters.month || (validDate && date.getMonth() + 1 === Number(filters.month));
         return (
           matchesSearch &&
           (!filters.fromDate || trip.date >= filters.fromDate) &&
           (!filters.toDate || trip.date <= filters.toDate) &&
-          (!filters.transportType || trip.transportType === filters.transportType) &&
+          (!filters.transportType || normalizeTransportType(trip.transportType) === filters.transportType) &&
           (!filters.company || trip.company === filters.company) &&
           (!filters.from || locationLabel(trip.from).toLocaleLowerCase('tr-TR').includes(filters.from.toLocaleLowerCase('tr-TR'))) &&
           (!filters.to || locationLabel(trip.to).toLocaleLowerCase('tr-TR').includes(filters.to.toLocaleLowerCase('tr-TR'))) &&
@@ -79,8 +100,22 @@ export default function TripsPage({ trips, onEdit, onDelete, onDetail, onNewTrip
   const filteredKm = sumBy(filteredTrips, 'distanceKm');
   const filteredCost = sumBy(filteredTrips, 'totalCost');
   const activeFilterCount = Object.values(filters).filter(Boolean).length;
+  const selectedMapTrip = filteredTrips.find((trip) => trip.id === selectedMapTripId) || null;
+  const selectedRouteUsage = selectedMapTrip ? filteredTrips.filter((trip) => getTripRouteTitle(trip) === getTripRouteTitle(selectedMapTrip)).length : 0;
+  const mapTrips = selectedMapTrip ? [selectedMapTrip] : filteredTrips;
   const resetFilters = () => setFilters(initialFilters);
   const updateFilter = (key, value) => setFilters((current) => ({ ...current, [key]: value }));
+  const selectTripOnMap = (trip) => {
+    setSelectedMapTripId(trip.id);
+    const rect = mapPanelRef.current?.getBoundingClientRect();
+    if (rect && (rect.top < 86 || rect.bottom > window.innerHeight)) {
+      mapPanelRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  useEffect(() => {
+    if (selectedMapTripId && !filteredTrips.some((trip) => trip.id === selectedMapTripId)) setSelectedMapTripId('');
+  }, [filteredTrips, selectedMapTripId]);
 
   const handleImportFile = async (event) => {
     const file = event.target.files?.[0];
@@ -236,6 +271,23 @@ export default function TripsPage({ trips, onEdit, onDelete, onDetail, onNewTrip
       )}
 
       {trips.length > 0 && (
+        <section className="panel pro-panel featured-map trips-map-panel" ref={mapPanelRef}>
+          {selectedMapTrip && (
+            <div className="trips-map-selection">
+              <div>
+                <strong>{getTripRouteTitle(selectedMapTrip)}</strong>
+                <span>{formatKm(selectedMapTrip.distanceKm)} · {minutesToDuration(selectedMapTrip.durationMinutes)} · {formatCurrency(selectedMapTrip.totalCost, selectedMapTrip.currency)} · {normalizeTransportType(selectedMapTrip.transportType)} · {tripProviderLabel(selectedMapTrip)} · {selectedRouteUsage} kullanım</span>
+              </div>
+              <button type="button" className="ghost-button" onClick={() => setSelectedMapTripId('')}>
+                Tüm rotalar
+              </button>
+            </div>
+          )}
+          <TravelMap trips={mapTrips} dashboard theme="dark" onRouteSelect={onDetail} selectedTripId={selectedMapTripId} onRouteFocus={(trip) => setSelectedMapTripId(trip?.id || '')} preserveMapOnEmpty />
+        </section>
+      )}
+
+      {trips.length > 0 && (
       <section className="panel table-panel">
         <div className="table-wrap">
           <table>
@@ -254,26 +306,37 @@ export default function TripsPage({ trips, onEdit, onDelete, onDetail, onNewTrip
             </thead>
             <tbody>
               {filteredTrips.map((trip) => (
-                <tr key={trip.id}>
+                <tr
+                  key={trip.id}
+                  className={selectedMapTripId === trip.id ? 'selected-trip-row' : ''}
+                  onClick={() => selectTripOnMap(trip)}
+                  tabIndex={0}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      selectTripOnMap(trip);
+                    }
+                  }}
+                >
                   <td>{formatDate(trip.date)}</td>
                   <td>
-                    <strong>{routeLabel(trip)}</strong>
-                    <small>{trip.title}</small>
+                    <strong>{getTripRouteTitle(trip)}</strong>
+                    {getTripRouteSubtitle(trip) ? <small>{getTripRouteSubtitle(trip)}</small> : null}
                   </td>
-                  <td>{trip.transportType}</td>
+                  <td><span className="transport-pill" style={{ '--transport-color': getTransportColor(trip.transportType) }}>{normalizeTransportType(trip.transportType)}</span></td>
                   <td>{tripProviderLabel(trip)}</td>
                   <td>{minutesToDuration(trip.durationMinutes)}</td>
                   <td>{formatKm(trip.distanceKm)}</td>
                   <td>{formatCurrency(trip.totalCost, trip.currency)}</td>
                   <td>{formatCurrency(trip.costPerKm, trip.currency)}</td>
                   <td className="row-actions">
-                    <button className="icon-button" title="Detay" onClick={() => onDetail(trip)}>
+                    <button className="icon-button" title="Detay" onClick={(event) => { event.stopPropagation(); onDetail(trip); }}>
                       <Eye size={17} />
                     </button>
-                    <button className="icon-button" title="Düzenle" onClick={() => onEdit(trip)}>
+                    <button className="icon-button" title="Düzenle" onClick={(event) => { event.stopPropagation(); onEdit(trip); }}>
                       <Pencil size={17} />
                     </button>
-                    <button className="icon-button danger" title="Sil" onClick={() => onDelete(trip)}>
+                    <button className="icon-button danger" title="Sil" onClick={(event) => { event.stopPropagation(); onDelete(trip); }}>
                       <Trash2 size={17} />
                     </button>
                   </td>

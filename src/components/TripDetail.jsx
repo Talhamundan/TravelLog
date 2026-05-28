@@ -1,18 +1,18 @@
 // Seyahat detaylarını ve harita görselini modal olarak sunar.
 import { Pencil, Trash2 } from 'lucide-react';
 import { formatCurrency, formatDate, formatKm, minutesToDuration } from '../utils/formatters';
-import { routeLabel } from '../utils/location';
 import TripMap from './TripMap';
 import { tripProviderLabel } from '../utils/tripDisplay';
 import Modal from './ui/Modal';
 import { normalizeTrip } from '../utils/tripNormalizers';
+import { getTripRouteTitle } from '../utils/routeDisplay';
 
 export default function TripDetail({ trip, onClose, onEdit, onDelete }) {
   const normalizedTrip = normalizeTrip(trip);
   const isVehicleTrip = normalizedTrip.transportType === 'Araç';
 
   return (
-    <Modal open title={routeLabel(normalizedTrip)} subtitle={`${normalizedTrip.fromLabel} → ${normalizedTrip.toLabel}`} className="trip-detail-modal" onClose={onClose}>
+    <Modal open title={getTripRouteTitle(normalizedTrip)} subtitle={normalizedTrip.routeNote || normalizedTrip.notes || ''} className="trip-detail-modal" onClose={onClose}>
         <div className="button-row detail-actions">
           <button className="secondary-button" onClick={() => onEdit(normalizedTrip)}>
             <Pencil size={17} />

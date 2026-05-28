@@ -5,24 +5,25 @@ import CustomSelect from '../components/ui/CustomSelect';
 import TravelMap from '../components/TravelMap';
 import { geocodeLocationText } from '../services/routeDistanceService';
 import { createStats, toNumber } from '../utils/analytics';
-import { formatCurrency, formatKm } from '../utils/formatters';
-import { routeLabel } from '../utils/location';
+import { formatCurrency, formatKm, isValidDisplayDate } from '../utils/formatters';
 import { findTravelLocation } from '../utils/locations';
+import { normalizeTransportType } from '../constants/transport';
+import { getTripRouteTitle } from '../utils/routeDisplay';
 
 const locationTypes = ['Ev', 'İş', 'Otogar', 'Havalimanı', 'Gar', 'Diğer'];
 
 export default function MapPage({ trips, savedLocations = [], onSaveLocation, onDeleteLocation }) {
-  const [mode, setMode] = useState('routes');
+  const [mode, setMode] = useState('locations');
   const [mapTheme, setMapTheme] = useState(() => localStorage.getItem('travellog:mapTheme') || 'dark');
   const [filters, setFilters] = useState({ year: '', month: '', transportType: '', company: '' });
   const [draftLocation, setDraftLocation] = useState({ name: '', type: 'Ev', lat: '', lng: '', notes: '' });
   const [geocoding, setGeocoding] = useState(false);
-  const years = useMemo(() => [...new Set(trips.map((trip) => new Date(trip.date).getFullYear()).filter(Boolean))].sort((a, b) => b - a), [trips]);
+  const years = useMemo(() => [...new Set(trips.filter((trip) => isValidDisplayDate(trip.date)).map((trip) => new Date(trip.date).getFullYear()))].sort((a, b) => b - a), [trips]);
   const months = useMemo(
-    () => [...new Set(trips.map((trip) => new Date(trip.date).getMonth() + 1).filter((month) => month >= 1 && month <= 12))].sort((a, b) => a - b),
+    () => [...new Set(trips.filter((trip) => isValidDisplayDate(trip.date)).map((trip) => new Date(trip.date).getMonth() + 1).filter((month) => month >= 1 && month <= 12))].sort((a, b) => a - b),
     [trips],
   );
-  const transportTypes = useMemo(() => uniqueTripValues(trips, 'transportType'), [trips]);
+  const transportTypes = useMemo(() => [...new Set(trips.map((trip) => normalizeTransportType(trip.transportType)).filter(Boolean))], [trips]);
   const companies = useMemo(() => uniqueTripValues(trips, 'company'), [trips]);
 
   useEffect(() => {
@@ -43,17 +44,18 @@ export default function MapPage({ trips, savedLocations = [], onSaveLocation, on
     () =>
       trips.filter((trip) => {
         const date = new Date(trip.date);
+        const validDate = isValidDisplayDate(trip.date);
         return (
-          (!filters.year || date.getFullYear() === Number(filters.year)) &&
-          (!filters.month || date.getMonth() + 1 === Number(filters.month)) &&
-          (!filters.transportType || trip.transportType === filters.transportType) &&
+          (!filters.year || (validDate && date.getFullYear() === Number(filters.year))) &&
+          (!filters.month || (validDate && date.getMonth() + 1 === Number(filters.month))) &&
+          (!filters.transportType || normalizeTransportType(trip.transportType) === filters.transportType) &&
           (!filters.company || trip.company === filters.company)
         );
       }),
     [filters, trips],
   );
   const stats = createStats(filtered);
-  const longest = [...filtered].sort((a, b) => toNumber(b.distanceKm) - toNumber(a.distanceKm))[0];
+  const longest = useMemo(() => getLongestRouteSummary(filtered), [filtered]);
   const expensive = [...filtered].sort((a, b) => toNumber(b.totalCost) - toNumber(a.totalCost))[0];
   const hasDraftCoords = Number.isFinite(Number(draftLocation.lat)) && Number.isFinite(Number(draftLocation.lng));
 
@@ -126,8 +128,8 @@ export default function MapPage({ trips, savedLocations = [], onSaveLocation, on
               <Metric label="Seyahat sayısı" value={stats.totalTrips} />
               <Metric label="Toplam km" value={formatKm(stats.totalKm)} />
               <Metric label="Toplam masraf" value={formatCurrency(stats.totalCost)} />
-              <Metric label="En uzun rota" value={longest ? `${routeLabel(longest)} · ${formatKm(longest.distanceKm)}` : '-'} />
-              <Metric label="En pahalı rota" value={expensive ? `${routeLabel(expensive)} · ${formatCurrency(expensive.totalCost)}` : '-'} />
+              <Metric label="En uzun rota" value={longest ? `${longest.title} · ${formatKm(longest.distanceKm)}` : '-'} />
+              <Metric label="En pahalı rota" value={expensive ? `${getTripRouteTitle(expensive)} · ${formatCurrency(expensive.totalCost)}` : '-'} />
             </>
           ) : (
             <LocationSidePanel
@@ -179,6 +181,32 @@ export default function MapPage({ trips, savedLocations = [], onSaveLocation, on
 
 function uniqueTripValues(trips, key) {
   return [...new Set(trips.map((trip) => String(trip[key] || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
+}
+
+function getLongestRouteSummary(trips = []) {
+  const grouped = trips.reduce((acc, trip) => {
+    const title = getTripRouteTitle(trip);
+    const distanceKm = toNumber(trip.distanceKm);
+    if (!title || distanceKm <= 0) return acc;
+    acc[title] ||= [];
+    acc[title].push(distanceKm);
+    return acc;
+  }, {});
+
+  return Object.entries(grouped)
+    .map(([title, distances]) => ({
+      title,
+      distanceKm: representativeRouteDistance(distances),
+    }))
+    .sort((a, b) => b.distanceKm - a.distanceKm)[0] || null;
+}
+
+function representativeRouteDistance(distances = []) {
+  const sorted = distances.filter((value) => value > 0).sort((a, b) => a - b);
+  if (!sorted.length) return 0;
+  if (sorted.length === 1) return sorted[0];
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
 async function completeLocationDraft(draftLocation, setGeocoding) {

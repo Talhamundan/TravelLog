@@ -2,6 +2,7 @@
 import { getCityCoords } from '../utils/cityCoordinates';
 import { estimateDurationByTransport, estimateTravelDistance, haversineDistanceKm } from '../utils/distance';
 import { locationCity, locationCoords } from '../utils/location';
+import { normalizeTransportType } from '../constants/transport';
 
 export const estimateDistanceKm = async (from, to) => {
   const fromCoords = locationCoords(from) || getCityCoords(locationCity(from) || from);
@@ -39,11 +40,12 @@ export const geocodeLocationText = async (text) => {
 };
 
 export const getRouteEstimate = async (fromLocation, toLocation, transportType = 'Diğer') => {
+  const normalizedTransportType = normalizeTransportType(transportType);
   const from = locationCoords(fromLocation) || locationArray(fromLocation);
   const to = locationCoords(toLocation) || locationArray(toLocation);
   if (!from || !to) return { distanceKm: 0, durationMinutes: 0, source: 'none' };
 
-  if (transportType !== 'Uçak') {
+  if (normalizedTransportType !== 'Uçak') {
     try {
       const response = await fetch(`https://router.project-osrm.org/route/v1/driving/${from[1]},${from[0]};${to[1]},${to[0]}?overview=false`);
       const data = await response.json();
@@ -60,10 +62,10 @@ export const getRouteEstimate = async (fromLocation, toLocation, transportType =
     }
   }
 
-  const distanceKm = estimateTravelDistance(from, to, transportType);
+  const distanceKm = estimateTravelDistance(from, to, normalizedTransportType);
   return {
     distanceKm,
-    durationMinutes: estimateDurationByTransport(distanceKm, transportType),
+    durationMinutes: estimateDurationByTransport(distanceKm, normalizedTransportType),
     source: 'haversine',
   };
 };

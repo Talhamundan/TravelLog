@@ -17,9 +17,19 @@ import {
 import { createChartData } from '../utils/analytics';
 import EmptyState from './EmptyState';
 import { formatCurrency, formatKm } from '../utils/formatters';
+import { getTransportColor } from '../constants/transport';
 
-const colors = ['#3b82f6', '#8b5cf6', '#38bdf8', '#f59e0b', '#a78bfa', '#ef4444', '#0891b2', '#4b5563'];
 const months = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+const chartTooltipStyle = {
+  background: 'rgba(15, 23, 42, 0.96)',
+  border: '1px solid rgba(148, 163, 184, 0.22)',
+  borderRadius: 10,
+  color: '#e5edf8',
+  boxShadow: '0 18px 44px rgba(0, 0, 0, 0.28)',
+};
+const chartLabelStyle = { color: '#cbd5e1', fontWeight: 800 };
+const chartGridStroke = 'rgba(148, 163, 184, 0.16)';
+const chartTick = { fill: '#9fb0c8', fontSize: 12, fontWeight: 700 };
 
 export default function Charts({ trips, compact = false }) {
   const data = createChartData(trips);
@@ -34,10 +44,10 @@ export default function Charts({ trips, compact = false }) {
       <ChartPanel title="Aylara göre toplam km">
         <ResponsiveContainer height={height}>
           <BarChart data={data.monthly}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="name" />
-            <YAxis />
-            <Tooltip />
+            <CartesianGrid strokeDasharray="3 3" stroke={chartGridStroke} />
+            <XAxis dataKey="name" tick={chartTick} tickLine={false} axisLine={{ stroke: 'rgba(148, 163, 184, 0.22)' }} />
+            <YAxis tick={chartTick} tickLine={false} axisLine={false} />
+            <Tooltip contentStyle={chartTooltipStyle} labelStyle={chartLabelStyle} itemStyle={{ color: '#e5edf8' }} formatter={(value) => formatKm(value)} />
             <Bar dataKey="km" fill="#2563eb" radius={[5, 5, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
@@ -45,10 +55,10 @@ export default function Charts({ trips, compact = false }) {
       <ChartPanel title="Aylara göre toplam masraf">
         <ResponsiveContainer height={height}>
           <LineChart data={data.monthly}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="name" />
-            <YAxis />
-            <Tooltip />
+            <CartesianGrid strokeDasharray="3 3" stroke={chartGridStroke} />
+            <XAxis dataKey="name" tick={chartTick} tickLine={false} axisLine={{ stroke: 'rgba(148, 163, 184, 0.22)' }} />
+            <YAxis tick={chartTick} tickLine={false} axisLine={false} />
+            <Tooltip contentStyle={chartTooltipStyle} labelStyle={chartLabelStyle} itemStyle={{ color: '#e5edf8' }} formatter={(value) => formatCurrency(value)} />
             <Line dataKey="masraf" stroke="#16a34a" strokeWidth={3} dot={false} />
           </LineChart>
         </ResponsiveContainer>
@@ -58,10 +68,10 @@ export default function Charts({ trips, compact = false }) {
           <PieChart>
             <Pie data={data.transport} dataKey="value" nameKey="name" innerRadius={55} outerRadius={90} label>
               {data.transport.map((_, index) => (
-                <Cell key={index} fill={colors[index % colors.length]} />
+                <Cell key={index} fill={getTransportColor(data.transport[index]?.name)} />
               ))}
             </Pie>
-            <Tooltip />
+            <Tooltip contentStyle={chartTooltipStyle} labelStyle={chartLabelStyle} itemStyle={{ color: '#e5edf8' }} />
             <Legend />
           </PieChart>
         </ResponsiveContainer>
@@ -69,10 +79,10 @@ export default function Charts({ trips, compact = false }) {
       <ChartPanel title="Firmalara göre seyahat sayısı">
         <ResponsiveContainer height={height}>
           <BarChart data={data.companies}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="name" />
-            <YAxis />
-            <Tooltip />
+            <CartesianGrid strokeDasharray="3 3" stroke={chartGridStroke} />
+            <XAxis dataKey="name" tick={chartTick} tickLine={false} axisLine={{ stroke: 'rgba(148, 163, 184, 0.22)' }} interval={0} angle={-12} textAnchor="end" height={58} />
+            <YAxis tick={chartTick} tickLine={false} axisLine={false} />
+            <Tooltip contentStyle={chartTooltipStyle} labelStyle={chartLabelStyle} itemStyle={{ color: '#e5edf8' }} />
           <Bar dataKey="value" fill="#f97316" radius={[5, 5, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
@@ -82,10 +92,10 @@ export default function Charts({ trips, compact = false }) {
           <ChartPanel title="Yıllara göre toplam km ve masraf">
             <ResponsiveContainer height={height}>
               <BarChart data={data.years}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip />
+                <CartesianGrid strokeDasharray="3 3" stroke={chartGridStroke} />
+                <XAxis dataKey="name" tick={chartTick} tickLine={false} axisLine={{ stroke: 'rgba(148, 163, 184, 0.22)' }} />
+                <YAxis tick={chartTick} tickLine={false} axisLine={false} />
+                <Tooltip contentStyle={chartTooltipStyle} labelStyle={chartLabelStyle} itemStyle={{ color: '#e5edf8' }} formatter={(value, name) => (name === 'masraf' ? formatCurrency(value) : formatKm(value))} />
                 <Legend />
                 <Bar dataKey="km" fill="#2563eb" radius={[5, 5, 0, 0]} />
                 <Bar dataKey="masraf" fill="#16a34a" radius={[5, 5, 0, 0]} />
@@ -93,12 +103,12 @@ export default function Charts({ trips, compact = false }) {
             </ResponsiveContainer>
           </ChartPanel>
           <ChartPanel title="En çok kullanılan rotalar">
-            <ResponsiveContainer height={height}>
-              <BarChart data={data.routes} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" />
-                <YAxis dataKey="name" type="category" width={130} />
-                <Tooltip />
+            <ResponsiveContainer height={Math.max(height, data.routes.length * 34)}>
+              <BarChart data={data.routes} layout="vertical" margin={{ top: 8, right: 18, bottom: 8, left: 22 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={chartGridStroke} />
+                <XAxis type="number" tick={chartTick} tickLine={false} axisLine={{ stroke: 'rgba(148, 163, 184, 0.22)' }} />
+                <YAxis dataKey="name" type="category" width={180} tick={chartTick} tickLine={false} axisLine={false} interval={0} />
+                <Tooltip contentStyle={chartTooltipStyle} labelStyle={chartLabelStyle} itemStyle={{ color: '#e5edf8' }} />
                 <Bar dataKey="value" fill="#0891b2" radius={[0, 5, 5, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -121,8 +131,8 @@ function ChartPanel({ title, children }) {
 function CompactDashboardCharts({ data }) {
   return (
     <div className="chart-grid compact-chart-grid">
-      <MiniLineCard title="Aylara Göre Km" badge={formatKm(data.monthly.reduce((sum, item) => sum + item.km, 0))} data={data.monthly.map((item) => item.km)} color="#38bdf8" fill="rgba(56, 189, 248, 0.12)" />
-      <MiniLineCard title="Aylara Göre Masraf" badge={formatCurrency(data.monthly.reduce((sum, item) => sum + item.masraf, 0))} data={data.monthly.map((item) => item.masraf)} color="#c084fc" fill="rgba(192, 132, 252, 0.13)" />
+      <MiniLineCard title="Aylara Göre Km" badge={formatKm(data.monthly.reduce((sum, item) => sum + item.km, 0))} data={data.monthly.map((item) => item.km)} color="#38bdf8" fill="rgba(56, 189, 248, 0.12)" formatter={formatKm} />
+      <MiniLineCard title="Aylara Göre Masraf" badge={formatCurrency(data.monthly.reduce((sum, item) => sum + item.masraf, 0))} data={data.monthly.map((item) => item.masraf)} color="#c084fc" fill="rgba(192, 132, 252, 0.13)" formatter={formatCurrency} />
       <DonutMiniCard items={data.transport.slice(0, 5)} />
       <CompanyMiniCard items={data.companies.slice(0, 5)} />
       <RoutesMiniPanel routes={data.routes.slice(0, 5)} />
@@ -130,7 +140,7 @@ function CompactDashboardCharts({ data }) {
   );
 }
 
-function MiniLineCard({ title, badge, data, color, fill }) {
+function MiniLineCard({ title, badge, data, color, fill, formatter = (value) => value }) {
   const points = linePoints(data);
   const area = `0,112 ${points} 320,112`;
   return (
@@ -146,9 +156,15 @@ function MiniLineCard({ title, badge, data, color, fill }) {
         </g>
         <polygon points={area} fill={fill} />
         <polyline points={points} fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-        {points.split(' ').map((point) => {
+        {points.split(' ').map((point, index) => {
           const [x, y] = point.split(',');
-          return <circle key={point} cx={x} cy={y} r="3.4" fill="#102033" stroke={color} strokeWidth="2" />;
+          return (
+            <g key={point} className="mini-chart-point">
+              <circle cx={x} cy={y} r="9" fill="transparent" />
+              <circle cx={x} cy={y} r="3.4" fill="#102033" stroke={color} strokeWidth="2" />
+              <text x={x} y={Number(y) - 12} textAnchor="middle">{months[index]}: {formatter(data[index])}</text>
+            </g>
+          );
         })}
       </svg>
       <div className="mini-months">{months.map((month) => <span key={month}>{month}</span>)}</div>
@@ -172,14 +188,14 @@ function DonutMiniCard({ items }) {
             const dash = `${length} ${264 - length}`;
             const currentOffset = offset;
             offset -= length;
-            return <circle key={item.name} cx="60" cy="60" r="42" fill="none" stroke={colors[index % colors.length]} strokeWidth="18" strokeDasharray={dash} strokeDashoffset={currentOffset} strokeLinecap="butt" />;
+            return <circle key={item.name} cx="60" cy="60" r="42" fill="none" stroke={getTransportColor(item.name)} strokeWidth="18" strokeDasharray={dash} strokeDashoffset={currentOffset} strokeLinecap="butt" />;
           })}
           <circle cx="60" cy="60" r="30" fill="#102033" />
         </svg>
         <div className="donut-legend">
           {topItems.map((item, index) => (
             <div key={item.name}>
-              <i style={{ background: colors[index % colors.length] }} />
+              <i style={{ background: getTransportColor(item.name) }} />
               <span>{item.name}</span>
               <b>%{Math.round((item.value / total) * 100)}</b>
             </div>

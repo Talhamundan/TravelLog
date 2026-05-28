@@ -1,6 +1,6 @@
 // TravelLog ana kabuğu: oturum, veri yükleme ve sayfa geçişlerini yönetir.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BarChart3, Bell, Building2, CalendarDays, Car, CreditCard, LayoutDashboard, Map, Plus, Route, Settings, Table2 } from 'lucide-react';
+import { BarChart3, Building2, CalendarCheck2, CalendarDays, Car, Check, CreditCard, Eye, EyeOff, LayoutDashboard, Lock, Mail, Map, Plus, Route, Settings, Table2 } from 'lucide-react';
 import { hasFirebaseConfig } from './config/firebase';
 import { subscribeToAuth, signInWithGoogle, logout } from './services/authService';
 import { createDemoTrips, createTripsBulk, deleteOwnedItem, deleteTrip, listOwnedCollection, listTrips, saveOwnedItem, saveTrip } from './services/tripService';
@@ -14,7 +14,7 @@ import SettingsPage from './pages/SettingsPage';
 import MapPage from './pages/MapPage';
 import CalendarPage from './pages/Calendar';
 import ExpensesPage from './pages/Expenses';
-import { DEFAULT_COMPANIES } from './constants/travel';
+import PlannerPage from './pages/PlannerPage';
 import { normalizeTrips } from './utils/tripNormalizers';
 
 const navItems = [
@@ -27,7 +27,7 @@ const navItems = [
   { id: 'map', label: 'Harita', icon: Map },
   { id: 'expenses', label: 'Masraflar', icon: CreditCard },
   { id: 'calendar', label: 'Takvim', icon: CalendarDays },
-  { id: 'reminders', label: 'Hatırlatmalar', icon: Bell },
+  { id: 'planner', label: 'Planlayıcı', icon: CalendarCheck2 },
   { id: 'settings', label: 'Ayarlar', icon: Settings },
 ];
 
@@ -46,6 +46,7 @@ export default function App() {
   const [lastError, setLastError] = useState('');
   const [toast, setToast] = useState(null);
   const [confirmState, setConfirmState] = useState(null);
+  const [loginForm, setLoginForm] = useState({ email: '', password: '', remember: true, showPassword: false, loading: false, error: '' });
   const toastTimerRef = useRef(null);
 
   useEffect(
@@ -60,6 +61,14 @@ export default function App() {
     if (!user?.uid) return;
     refreshData(user.uid, { showLoading: true });
   }, [user?.uid]);
+
+  useEffect(() => {
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      document.querySelector('.main-area')?.scrollTo?.({ top: 0, left: 0, behavior: 'auto' });
+      document.querySelector('.content')?.scrollTo?.({ top: 0, left: 0, behavior: 'auto' });
+    });
+  }, [activePage]);
 
   const refreshData = async (userId = user.uid, options = {}) => {
     const { showLoading = false } = options;
@@ -95,7 +104,7 @@ export default function App() {
   };
 
   const companyNames = useMemo(
-    () => [...new Set([...DEFAULT_COMPANIES, ...companies.map((company) => company.name)].filter(Boolean))],
+    () => [...new Set(companies.map((company) => company.name).filter(Boolean))],
     [companies],
   );
   const normalizedTrips = useMemo(() => normalizeTrips(trips), [trips]);
@@ -208,6 +217,20 @@ export default function App() {
     });
   };
 
+  const handleLogin = async () => {
+    setLoginForm((current) => ({ ...current, loading: true, error: '' }));
+    try {
+      await signInWithGoogle();
+    } catch (error) {
+      setLoginForm((current) => ({
+        ...current,
+        error: error?.message || 'Giriş yapılamadı. Lütfen tekrar deneyin.',
+      }));
+    } finally {
+      setLoginForm((current) => ({ ...current, loading: false }));
+    }
+  };
+
   const handleSaveExpense = async (expense) => {
     try {
       await saveOwnedItem('expenses', expense, user.uid);
@@ -267,7 +290,7 @@ export default function App() {
     'new-trip': (
       <TripFormPage
         initialTrip={editingTrip}
-        companies={companyNames}
+        companies={companies}
         vehicles={vehicles}
         savedLocations={savedLocations}
         onCancel={() => {
@@ -350,7 +373,13 @@ export default function App() {
         onDetail={setDetailTrip}
       />
     ),
-    reminders: <Placeholder title="Hatırlatmalar" description="PNR, bilet ve yolculuk hatırlatmaları için altyapı burada toplanacak." />,
+    planner: (
+      <PlannerPage
+        trips={visibleTrips}
+        onNewTrip={() => setActivePage('new-trip')}
+        onDetail={setDetailTrip}
+      />
+    ),
     settings: (
       <SettingsPage
         hasFirebaseConfig={hasFirebaseConfig}
@@ -365,13 +394,80 @@ export default function App() {
   if (!user) {
     return (
       <main className="login-screen">
+        <div className="login-route-glow" aria-hidden="true" />
+        <section className="login-hero">
+          <span className="login-badge">Travel Analytics Platform</span>
+          <div className="login-brand-lockup">
+            <span className="brand-mark travel-logo" aria-hidden="true">
+              <Route size={30} />
+              <i />
+            </span>
+            <h1>TravelLog</h1>
+          </div>
+          <p className="login-slogan">Kişisel seyahat geçmişini harita, masraf ve zaman çizelgesiyle tek yerden takip et.</p>
+          <p className="login-description">TravelLog; rotalarınızı, ulaşım geçmişinizi, masraflarınızı, firmaları, araçları ve seyahat istatistiklerinizi modern bir panelde bir araya getirir.</p>
+          <div className="login-feature-list">
+            {['Rota geçmişi', 'Gerçek harita rotaları', 'Seyahat masraf analizi', 'Takvim ve raporlama', 'Araç / firma yönetimi'].map((item) => (
+              <span key={item}>
+                <Check size={15} />
+                {item}
+              </span>
+            ))}
+          </div>
+        </section>
         <section className="login-panel">
-          <Route size={42} />
-          <h1>TravelLog</h1>
-          <p>Kişisel seyahat arşivinizi filtrelenebilir, grafik destekli ve haritalı bir panele taşıyın.</p>
-          <button className="primary-button" onClick={signInWithGoogle}>
-            Google ile giriş yap
+          <div className="login-card-head">
+            <span>Hesabınıza giriş yapın</span>
+            <h2>Kontrol paneline dön</h2>
+          </div>
+          <label className="login-field">
+            <span>E-posta</span>
+            <div>
+              <Mail size={17} />
+              <input
+                type="email"
+                value={loginForm.email}
+                onChange={(event) => setLoginForm((current) => ({ ...current, email: event.target.value }))}
+                placeholder="ornek@travellog.app"
+                autoComplete="email"
+              />
+            </div>
+          </label>
+          <label className="login-field">
+            <span>Şifre</span>
+            <div>
+              <Lock size={17} />
+              <input
+                type={loginForm.showPassword ? 'text' : 'password'}
+                value={loginForm.password}
+                onChange={(event) => setLoginForm((current) => ({ ...current, password: event.target.value }))}
+                placeholder="••••••••"
+                autoComplete="current-password"
+              />
+              <button type="button" onClick={() => setLoginForm((current) => ({ ...current, showPassword: !current.showPassword }))} aria-label={loginForm.showPassword ? 'Şifreyi gizle' : 'Şifreyi göster'}>
+                {loginForm.showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+              </button>
+            </div>
+          </label>
+          <div className="login-options">
+            <label>
+              <input
+                type="checkbox"
+                checked={loginForm.remember}
+                onChange={(event) => setLoginForm((current) => ({ ...current, remember: event.target.checked }))}
+              />
+              Beni hatırla
+            </label>
+            <button type="button">Şifremi unuttum</button>
+          </div>
+          <button className="primary-button login-submit" onClick={handleLogin} disabled={loginForm.loading}>
+            {loginForm.loading ? 'Giriş yapılıyor...' : hasFirebaseConfig ? 'Google ile giriş yap' : 'Demo giriş yap'}
           </button>
+          {!hasFirebaseConfig && (
+            <button className="ghost-button login-demo" onClick={handleLogin} disabled={loginForm.loading}>
+              Demo paneli görüntüle
+            </button>
+          )}
           {!hasFirebaseConfig && <small>Firebase env değerleri girilmediği için demo mod açıktır.</small>}
         </section>
       </main>
@@ -393,6 +489,7 @@ export default function App() {
       onYearFilterChange={setYearFilter}
       vehicles={vehicles}
       companies={companies}
+      savedLocations={savedLocations}
       onLogout={logout}
       loading={loading}
       error={lastError}

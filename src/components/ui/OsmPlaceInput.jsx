@@ -57,7 +57,7 @@ export default function OsmPlaceInput({ label, value, selectedPlace, savedLocati
   };
 
   return (
-    <label className={`google-place-field osm-place-field ${invalid ? 'invalid' : ''}`}>
+    <label className={`osm-place-field ${invalid ? 'invalid' : ''}`}>
       {label && <span>{label}</span>}
       <div className="place-input-shell">
         <Search size={17} />

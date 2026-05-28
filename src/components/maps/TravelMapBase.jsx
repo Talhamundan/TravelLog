@@ -20,11 +20,12 @@ export default function TravelMapBase({
   onMapClick,
   fitKey = '',
   emptyMessage = 'Konum bilgisi eksik',
+  showEmptyMap = false,
 }) {
   const themeConfig = getMapTheme(theme);
   const hasContent = routes.some((route) => route.points?.length >= 2) || markers.some((marker) => isCoord(marker.position));
 
-  if (!hasContent && !onMapClick) {
+  if (!hasContent && !onMapClick && !showEmptyMap) {
     return (
       <div className={`travel-map-empty ${className}`}>
         <AlertTriangle size={24} />

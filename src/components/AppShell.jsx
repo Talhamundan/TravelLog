@@ -3,7 +3,9 @@ import { Bell, CalendarDays, Expand, Menu, Moon, PlaneTakeoff, Search, Sparkles,
 import { useEffect, useMemo, useState } from 'react';
 import { createStats } from '../utils/analytics';
 import { formatCurrency, formatDate, formatKm } from '../utils/formatters';
-import { routeLabel } from '../utils/location';
+import { getTripRouteTitle } from '../utils/routeDisplay';
+import { buildGlobalSearchResults } from '../utils/globalSearch';
+import { tripProviderLabel } from '../utils/tripDisplay';
 import TripDetail from './TripDetail';
 
 export default function AppShell({
@@ -17,6 +19,7 @@ export default function AppShell({
   onYearFilterChange,
   vehicles = [],
   companies = [],
+  savedLocations = [],
   onLogout,
   loading,
   error,
@@ -32,23 +35,89 @@ export default function AppShell({
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notificationFilter, setNotificationFilter] = useState('Tümü');
+  const [readNotifications, setReadNotifications] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('travellog:readNotifications') || '[]');
+    } catch {
+      return [];
+    }
+  });
+  const [globalQuery, setGlobalQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [recentSearches, setRecentSearches] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('travellog:recentSearches') || '[]');
+    } catch {
+      return [];
+    }
+  });
   const [theme, setTheme] = useState(() => localStorage.getItem('travellog:theme') || 'dark');
   const [fullscreen, setFullscreen] = useState(Boolean(document.fullscreenElement));
   const sidebarStats = useMemo(() => createStats(trips), [trips]);
+  const searchGroups = useMemo(
+    () => buildGlobalSearchResults({ query: globalQuery, trips, vehicles, companies, locations: savedLocations }),
+    [companies, globalQuery, savedLocations, trips, vehicles],
+  );
 
   const notifications = useMemo(() => {
-    const latestTrip = [...trips].sort((a, b) => String(b.date).localeCompare(String(a.date)))[0];
-    return [
-      latestTrip && {
-        title: 'Son seyahat',
-        text: `${routeLabel(latestTrip)} · ${formatDate(latestTrip.date)}`,
-      },
-      {
-        title: 'Veri özeti',
-        text: `${trips.length} seyahat, ${vehicles.length} araç, ${companies.length} firma kayıtlı.`,
-      },
-    ].filter(Boolean);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const upcoming = trips
+      .map((trip) => {
+        const date = new Date(trip.date);
+        if (Number.isNaN(date.getTime())) return null;
+        date.setHours(0, 0, 0, 0);
+        const daysLeft = Math.ceil((date - today) / 86400000);
+        if (daysLeft < 0 || daysLeft > 14) return null;
+        const route = getTripRouteTitle(trip);
+        return [
+          {
+            id: `trip-${trip.id}-${trip.date}`,
+            category: 'Seyahat',
+            title: daysLeft <= 1 ? `${daysLeft === 0 ? 'Bugün' : 'Yarın'} ${route} seyahatin var` : `${route} seyahati yaklaşıyor`,
+            text: `${formatDate(trip.date)} · ${trip.departureTime || 'Saat yok'}`,
+            time: daysLeft <= 1 ? 'yakın' : `${daysLeft} gün`,
+          },
+          !trip.company && {
+            id: `reservation-${trip.id}`,
+            category: 'Rezervasyon',
+            title: `${route} rezervasyonu eksik`,
+            text: tripProviderLabel(trip),
+            time: 'eksik',
+          },
+          {
+            id: `reminder-${trip.id}`,
+            category: 'Hatırlatma',
+            title: daysLeft <= 1 ? `${route} için son hazırlık zamanı` : `${route} hatırlatması aktif`,
+            text: daysLeft <= 7 ? 'Planlayıcı checklist ve rezervasyon durumunu kontrol edin.' : formatDate(trip.date),
+            time: daysLeft <= 1 ? 'kritik' : `${daysLeft} gün`,
+          },
+          {
+            id: `checklist-${trip.id}`,
+            category: 'Checklist',
+            title: `${route} hazırlığını kontrol et`,
+            text: 'Checklist ve hatırlatmaları Planlayıcı’da takip edin.',
+            time: `${daysLeft} gün`,
+          },
+        ].filter(Boolean);
+      })
+      .filter(Boolean)
+      .flat();
+    return upcoming.length ? upcoming : [{
+      id: 'system-summary',
+      category: 'Seyahat',
+      title: 'Planlayıcı hazır',
+      text: `${trips.length} seyahat, ${vehicles.length} araç, ${companies.length} firma kayıtlı.`,
+      time: 'şimdi',
+    }];
   }, [trips, vehicles, companies]);
+  const visibleNotifications = notifications.filter((item) => notificationFilter === 'Tümü' || item.category === notificationFilter);
+  const unreadCount = notifications.filter((item) => !readNotifications.includes(item.id)).length;
+
+  useEffect(() => {
+    localStorage.setItem('travellog:readNotifications', JSON.stringify(readNotifications));
+  }, [readNotifications]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -61,9 +130,33 @@ export default function AppShell({
     return () => document.removeEventListener('fullscreenchange', syncFullscreen);
   }, []);
 
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setSearchOpen(true);
+        window.requestAnimationFrame(() => document.querySelector('.topbar-search input')?.focus());
+      }
+      if (event.key === 'Escape') setSearchOpen(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, []);
+
   const navigate = (pageId) => {
     onNavigate(pageId);
     setMobileOpen(false);
+  };
+
+  const selectSearchResult = (result) => {
+    if (globalQuery.trim()) {
+      const next = [globalQuery.trim(), ...recentSearches.filter((item) => item !== globalQuery.trim())].slice(0, 5);
+      setRecentSearches(next);
+      localStorage.setItem('travellog:recentSearches', JSON.stringify(next));
+    }
+    setSearchOpen(false);
+    setGlobalQuery('');
+    navigate(result.page);
   };
 
   const toggleFullscreen = async () => {
@@ -94,7 +187,6 @@ export default function AppShell({
               <button key={item.id} className={activePage === item.id ? 'active' : ''} onClick={() => navigate(item.id)}>
                 <Icon size={18} />
                 <span>{item.label}</span>
-                {item.id === 'map' && <em>YENİ</em>}
               </button>
             );
           })}
@@ -130,10 +222,48 @@ export default function AppShell({
           </button>
           <label className="topbar-search">
             <Search size={17} />
-            <input placeholder="Ara: şehir, firma, PNR, not..." />
+            <input
+              value={globalQuery}
+              onChange={(event) => {
+                setGlobalQuery(event.target.value);
+                setSearchOpen(true);
+              }}
+              onFocus={() => setSearchOpen(true)}
+              placeholder="Ara: şehir, firma, PNR, not..."
+            />
             <kbd>⌘K</kbd>
+            {searchOpen && (
+              <section className="global-search-popover">
+                {globalQuery.trim() && searchGroups.length ? (
+                  searchGroups.map((group) => (
+                    <div key={group.category}>
+                      <strong>{group.category}</strong>
+                      {group.items.map((item) => (
+                        <button type="button" key={item.id} onMouseDown={(event) => event.preventDefault()} onClick={() => selectSearchResult(item)}>
+                          <span>{item.title}</span>
+                          {item.subtitle && <small>{item.subtitle}</small>}
+                        </button>
+                      ))}
+                    </div>
+                  ))
+                ) : globalQuery.trim() ? (
+                  <p>Sonuç bulunamadı.</p>
+                ) : recentSearches.length ? (
+                  <div>
+                    <strong>Son aramalar</strong>
+                    {recentSearches.map((item) => (
+                      <button type="button" key={item} onMouseDown={(event) => event.preventDefault()} onClick={() => { setGlobalQuery(item); setSearchOpen(true); }}>
+                        <span>{item}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p>Plaka, PNR, rota, firma veya konum arayın.</p>
+                )}
+              </section>
+            )}
           </label>
-          <div className="topbar-popover-wrap">
+          <div className="topbar-actions">
             {availableYears.length > 0 && (
               <label className="topbar-year-filter">
                 <CalendarDays size={16} />
@@ -145,29 +275,44 @@ export default function AppShell({
                 </select>
               </label>
             )}
-            <button className="icon-button has-badge" title="Bildirimler" onClick={() => setNotificationsOpen((value) => !value)}>
-              <Bell size={18} />
-              {notifications.length > 0 && <span>{notifications.length}</span>}
+            <div className="topbar-popover-wrap">
+              <button className="icon-button has-badge" title="Bildirimler" onClick={() => setNotificationsOpen((value) => !value)}>
+                <Bell size={18} />
+                {unreadCount > 0 && <span>{unreadCount}</span>}
+              </button>
+              {notificationsOpen && (
+                <section className="topbar-popover notification-center">
+                  <div className="notification-head">
+                    <h3>Bildirimler</h3>
+                    <button type="button" onClick={() => navigate('planner')}>Tümünü Gör</button>
+                  </div>
+                  <div className="notification-filters">
+                    {['Tümü', 'Seyahat', 'Hatırlatma', 'Checklist', 'Rezervasyon'].map((category) => (
+                      <button key={category} type="button" className={notificationFilter === category ? 'active' : ''} onClick={() => setNotificationFilter(category)}>
+                        {category}
+                      </button>
+                    ))}
+                  </div>
+                  {visibleNotifications.map((item) => (
+                    <article key={item.id} className={readNotifications.includes(item.id) ? 'read' : ''} onClick={() => setReadNotifications((current) => [...new Set([...current, item.id])])}>
+                      <div>
+                        <strong>{item.title}</strong>
+                        <p>{item.text}</p>
+                      </div>
+                      <small>{item.time}</small>
+                    </article>
+                  ))}
+                </section>
+              )}
+            </div>
+            <button className="icon-button theme-toggle" title="Tema" onClick={() => setTheme((value) => (value === 'dark' ? 'light' : 'dark'))}>
+              {theme === 'dark' ? <Moon size={18} /> : <Sun size={18} />}
+              <Sparkles size={10} />
             </button>
-            {notificationsOpen && (
-              <section className="topbar-popover">
-                <h3>Bildirimler</h3>
-                {notifications.map((item) => (
-                  <article key={item.title}>
-                    <strong>{item.title}</strong>
-                    <p>{item.text}</p>
-                  </article>
-                ))}
-              </section>
-            )}
+            <button className={`icon-button ${fullscreen ? 'active-icon' : ''}`} title="Tam ekran" onClick={toggleFullscreen}>
+              <Expand size={18} />
+            </button>
           </div>
-          <button className="icon-button theme-toggle" title="Tema" onClick={() => setTheme((value) => (value === 'dark' ? 'light' : 'dark'))}>
-            {theme === 'dark' ? <Moon size={18} /> : <Sun size={18} />}
-            <Sparkles size={10} />
-          </button>
-          <button className={`icon-button ${fullscreen ? 'active-icon' : ''}`} title="Tam ekran" onClick={toggleFullscreen}>
-            <Expand size={18} />
-          </button>
         </header>
         <main className="content">
           {error && (

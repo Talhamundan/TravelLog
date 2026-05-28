@@ -1,17 +1,32 @@
 // Ana ekran metrikleri ve hızlı grafik özetlerini üretir.
-import { Banknote, BriefcaseBusiness, Eye, Gauge, Pencil, Plus, Route, Trash2, WalletCards } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Banknote, BriefcaseBusiness, Gauge, Plus, Route, WalletCards } from 'lucide-react';
 import Charts from '../components/Charts';
 import EmptyState from '../components/EmptyState';
 import StatCard from '../components/StatCard';
-import TravelMap from '../components/TravelMap';
+import TravelMap, { defaultDashboardMapFilters, matchesTravelMapFilters } from '../components/TravelMap';
 import { formatCurrency, formatDate, formatKm, minutesToDuration } from '../utils/formatters';
 import { createStats } from '../utils/analytics';
-import { routeLabel } from '../utils/location';
 import { tripProviderLabel } from '../utils/tripDisplay';
+import { getTransportColor, normalizeTransportType } from '../constants/transport';
+import { getTripRouteSubtitle, getTripRouteTitle } from '../utils/routeDisplay';
 
-export default function Dashboard({ trips, onOpenTrips, onNewTrip, onSeed, onEdit, onDelete, onDetail }) {
-  const stats = createStats(trips);
-  const recentTrips = [...trips].sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 5);
+export default function Dashboard({ trips, onOpenTrips, onNewTrip, onSeed }) {
+  const [mapFilters, setMapFilters] = useState(defaultDashboardMapFilters);
+  const [selectedTripId, setSelectedTripId] = useState('');
+  const dashboardTransportTypes = useMemo(() => [...new Set(trips.map((trip) => normalizeTransportType(trip.transportType)).filter(Boolean))], [trips]);
+  const filteredTrips = useMemo(() => trips.filter((trip) => matchesTravelMapFilters(trip, mapFilters)), [mapFilters, trips]);
+  const stats = createStats(filteredTrips);
+  const recentTrips = [...filteredTrips].sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 5);
+  const selectedTrip = filteredTrips.find((trip) => trip.id === selectedTripId) || null;
+  const selectedRouteUsage = selectedTrip ? filteredTrips.filter((trip) => getTripRouteTitle(trip) === getTripRouteTitle(selectedTrip)).length : 0;
+
+  useEffect(() => {
+    setMapFilters((current) => ({
+      ...current,
+      transport: current.transport !== 'Tüm rotalar' && !dashboardTransportTypes.includes(current.transport) ? 'Tüm rotalar' : current.transport,
+    }));
+  }, [dashboardTransportTypes]);
 
   return (
     <div className="page-stack">
@@ -26,10 +41,28 @@ export default function Dashboard({ trips, onOpenTrips, onNewTrip, onSeed, onEdi
       {trips.length > 0 && (
         <>
           <section className="panel pro-panel featured-map">
-            <TravelMap trips={trips} />
+            {selectedTrip && (
+              <div className="trips-map-selection dashboard-map-selection">
+                <div>
+                  <strong>{getTripRouteTitle(selectedTrip)}</strong>
+                  <span>{formatKm(selectedTrip.distanceKm)} · {minutesToDuration(selectedTrip.durationMinutes)} · {formatCurrency(selectedTrip.totalCost, selectedTrip.currency)} · {normalizeTransportType(selectedTrip.transportType)} · {tripProviderLabel(selectedTrip)} · {selectedRouteUsage} kullanım</span>
+                </div>
+                <button type="button" className="ghost-button" onClick={() => setSelectedTripId('')}>
+                  Tüm rotalar
+                </button>
+              </div>
+            )}
+            <TravelMap
+              trips={trips}
+              dashboard
+              filters={mapFilters}
+              onFiltersChange={setMapFilters}
+              selectedTripId={selectedTripId}
+              onRouteFocus={(trip) => setSelectedTripId(trip?.id || '')}
+            />
           </section>
           <div className="dashboard-chart-strip">
-            <Charts trips={trips} compact />
+            <Charts trips={filteredTrips} compact />
           </div>
           <div className="dashboard-grid">
             <section className="panel pro-panel recent-table-panel">
@@ -46,17 +79,28 @@ export default function Dashboard({ trips, onOpenTrips, onNewTrip, onSeed, onEdi
                 <span>Km</span>
                 <span>Masraf</span>
                 <span>Km Başı</span>
-                <span>İşlemler</span>
               </div>
               <div className="recent-list dashboard-recent-list">
                 {recentTrips.map((trip) => (
-                  <article className="recent-trip" key={trip.id}>
+                  <article
+                    className={`recent-trip ${selectedTripId === trip.id ? 'selected-trip-row' : ''}`}
+                    key={trip.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setSelectedTripId(trip.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        setSelectedTripId(trip.id);
+                      }
+                    }}
+                  >
                     <time>{formatDate(trip.date)}</time>
                     <div>
-                      <strong>{routeLabel(trip)}</strong>
-                      <span>{trip.routeNote || trip.notes || '-'}</span>
+                      <strong>{getTripRouteTitle(trip)}</strong>
+                      {getTripRouteSubtitle(trip) || trip.routeNote || trip.notes ? <span>{getTripRouteSubtitle(trip) || trip.routeNote || trip.notes}</span> : null}
                     </div>
-                    <span className={`transport-pill transport-${trip.transportType || 'Diğer'}`}>{trip.transportType || 'Diğer'}</span>
+                    <span className="transport-pill" style={{ '--transport-color': getTransportColor(trip.transportType) }}>{normalizeTransportType(trip.transportType)}</span>
                     <span>{tripProviderLabel(trip)}</span>
                     <span>{minutesToDuration(trip.durationMinutes)}</span>
                     <b>{formatKm(trip.distanceKm)}</b>
@@ -64,17 +108,12 @@ export default function Dashboard({ trips, onOpenTrips, onNewTrip, onSeed, onEdi
                     <div>
                       <span>{formatCurrency(Number(trip.totalCost || 0) / Math.max(Number(trip.distanceKm || 0), 1), trip.currency)}</span>
                     </div>
-                    <div className="mini-actions">
-                      <button title="Detay" onClick={() => onDetail?.(trip)}><Eye size={14} /></button>
-                      <button title="Düzenle" onClick={() => onEdit?.(trip)}><Pencil size={14} /></button>
-                      <button title="Sil" onClick={() => onDelete?.(trip)}><Trash2 size={14} /></button>
-                    </div>
                   </article>
                 ))}
               </div>
             </section>
             <aside className="dashboard-side-stack">
-              <MiniCalendar trips={trips} />
+              <MiniCalendar trips={filteredTrips} />
               <button className="new-trip-cta" onClick={onNewTrip}>
                 Yeni Seyahat Ekle
                 <Plus size={18} />
@@ -120,13 +159,13 @@ function MiniCalendar({ trips }) {
             <span
               key={day}
               className={`${day === today.getDate() ? 'today' : ''} ${dayTrips.length ? 'has-trip' : ''}`}
-              title={dayTrips.map(routeLabel).join('\n')}
+              title={dayTrips.map(getTripRouteTitle).join('\n')}
             >
               {day}
               {dayTrips.length > 0 && (
                 <small>
                   {dayTrips.length} seyahat
-                  <b>{dayTrips.slice(0, 2).map(routeLabel).join(' • ')}</b>
+                  <b>{dayTrips.slice(0, 2).map(getTripRouteTitle).join(' • ')}</b>
                 </small>
               )}
             </span>

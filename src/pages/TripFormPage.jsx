@@ -1,5 +1,5 @@
 // Yeni seyahat kaydını adım adım ilerleyen, seçilen ulaşım türüne göre sadeleşen wizard olarak yönetir.
-import { ArrowLeft, ArrowRight, Bus, Car, Check, CircleHelp, Plane, Save, Train, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Bus, Car, Check, CircleHelp, Plane, Repeat2, Save, Train, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import TripPreviewMap from '../components/maps/TripPreviewMap';
 import CustomSelect from '../components/ui/CustomSelect';
@@ -30,9 +30,6 @@ const transportCards = [
 ];
 
 const fuelTypes = ['Benzin', 'Dizel', 'LPG', 'Hibrit', 'Elektrik', 'Diğer'];
-const airlineCompanies = ['THY', 'AJet', 'Pegasus', 'SunExpress', 'Enuygun'];
-const busCompanies = ['Metro', 'Kamil Koç', 'Pamukkale', 'Obilet', 'Enuygun'];
-const trainCompanies = ['TCDD', 'YHT'];
 
 export default function TripFormPage({ initialTrip, companies, vehicles, savedLocations = [], onSave, onCancel }) {
   const [step, setStep] = useState(0);
@@ -238,6 +235,12 @@ function TransportTypeStep({ form, update }) {
 
 function RouteStep({ form, savedLocations = [], updateLocation, update }) {
   const addWaypoint = () => update('waypoints', [...form.waypoints, { order: form.waypoints.length }]);
+  const swapRoute = () => {
+    update('routeSwapTick', Date.now());
+    updateLocation('from', form.toText || '', form.toLocation || null);
+    window.requestAnimationFrame(() => updateLocation('to', form.fromText || '', form.fromLocation || null));
+    update('waypoints', [...(form.waypoints || [])].reverse().map((point, order) => ({ ...point, order })));
+  };
   const updateWaypoint = (index, place) =>
     update(
       'waypoints',
@@ -255,7 +258,7 @@ function RouteStep({ form, savedLocations = [], updateLocation, update }) {
   return (
     <>
       <StepTitle number="2" title="Rota bilgileri" desc="OpenStreetMap araması ile başlangıç, ara duraklar ve varış noktalarını seçin." />
-      <div className="wizard-form-grid">
+      <div className={`wizard-form-grid route-input-grid ${form.routeSwapTick ? 'swapping' : ''}`}>
         <OsmPlaceInput
           label="Başlangıç noktası"
           value={form.fromText}
@@ -266,6 +269,9 @@ function RouteStep({ form, savedLocations = [], updateLocation, update }) {
           onChange={(text) => updateLocation('from', text, null)}
           onPlaceSelect={(place) => updateLocation('from', place?.name || '', place)}
         />
+        <button type="button" className="route-swap-button" onClick={swapRoute} title="Başlangıç ve varışı değiştir">
+          <Repeat2 size={18} />
+        </button>
         <OsmPlaceInput
           label="Varış noktası"
           value={form.toText}
@@ -311,7 +317,7 @@ function RouteStep({ form, savedLocations = [], updateLocation, update }) {
 }
 
 function DetailsStep({ form, update, companies, vehicles }) {
-  const companyOptions = form.transportType === 'Uçak' ? airlineCompanies : form.transportType === 'Otobüs' ? busCompanies : form.transportType === 'Tren' ? trainCompanies : companies;
+  const companyOptions = getRegisteredCompanyOptions(companies, form.transportType);
   return (
     <>
       <StepTitle number="3" title={`${form.transportType} detayları`} desc="Zaman, firma ve bilet bilgilerini girin." />
@@ -335,12 +341,13 @@ function DetailsStep({ form, update, companies, vehicles }) {
           </>
         ) : (
           <Field label={form.transportType === 'Uçak' ? 'Havayolu firması' : form.transportType === 'Otobüs' ? 'Otobüs firması' : 'Firma'}>
-            <CustomSelect value={form.company} options={[...new Set([...companyOptions, ...companies])]} placeholder="Firma seç" onChange={(value) => update('company', value)} />
+            <CustomSelect value={form.company} options={companyOptions} placeholder={companyOptions.length ? 'Firma seç' : 'Kayıtlı firma yok'} onChange={(value) => update('company', value)} />
           </Field>
         )}
         {form.transportType === 'Otobüs' && (
           <>
             <Field label="PNR"><input value={form.pnr} onChange={(event) => update('pnr', event.target.value.toLocaleUpperCase('tr-TR'))} /></Field>
+            <Field label="Peron"><input value={form.platformNo} onChange={(event) => update('platformNo', event.target.value.toLocaleUpperCase('tr-TR'))} /></Field>
             <Field label="Bilet no"><input value={form.ticketNo} onChange={(event) => update('ticketNo', event.target.value)} /></Field>
             <Field label="Koltuk no"><input value={form.seatNo} onChange={(event) => update('seatNo', event.target.value)} /></Field>
           </>
@@ -349,12 +356,17 @@ function DetailsStep({ form, update, companies, vehicles }) {
           <>
             <Field label="PNR"><input value={form.pnr} onChange={(event) => update('pnr', event.target.value.toLocaleUpperCase('tr-TR'))} /></Field>
             <Field label="Uçuş no"><input value={form.flightNo} onChange={(event) => update('flightNo', event.target.value.toLocaleUpperCase('tr-TR'))} placeholder="TK1234" /></Field>
+            <Field label="Koltuk no"><input value={form.seatNo} onChange={(event) => update('seatNo', event.target.value.toLocaleUpperCase('tr-TR'))} placeholder="12A" /></Field>
+            <Field label="Gate"><input value={form.gateNo} onChange={(event) => update('gateNo', event.target.value.toLocaleUpperCase('tr-TR'))} placeholder="B12" /></Field>
+            <Field label="Terminal"><input value={form.terminal} onChange={(event) => update('terminal', event.target.value.toLocaleUpperCase('tr-TR'))} placeholder="İç Hatlar" /></Field>
           </>
         )}
         {form.transportType === 'Tren' && (
           <>
             <Field label="Sefer no"><input value={form.tripNo || form.trainNo} onChange={(event) => update('tripNo', event.target.value.toLocaleUpperCase('tr-TR'))} /></Field>
             <Field label="Bilet no"><input value={form.ticketNo} onChange={(event) => update('ticketNo', event.target.value)} /></Field>
+            <Field label="Vagon"><input value={form.wagonNo} onChange={(event) => update('wagonNo', event.target.value.toLocaleUpperCase('tr-TR'))} /></Field>
+            <Field label="Koltuk no"><input value={form.seatNo} onChange={(event) => update('seatNo', event.target.value.toLocaleUpperCase('tr-TR'))} /></Field>
           </>
         )}
         {form.transportType === 'Diğer' && <Field label="Ulaşım açıklaması"><input value={form.company} onChange={(event) => update('company', event.target.value)} placeholder="Transfer, taksi, feribot..." /></Field>}
@@ -398,7 +410,9 @@ function SummaryStep(props) {
   return (
     <>
       <StepTitle number="5" title="Özet & kaydet" desc="Kaydetmeden önce seyahat bilgilerini kontrol edin." />
-      <LiveTripSummary {...props} embedded />
+      <div className="wizard-final-note">
+        Sağdaki canlı özet üzerinden son kontrolü yapıp seyahati kaydedebilirsiniz.
+      </div>
     </>
   );
 }
@@ -410,6 +424,8 @@ function LiveTripSummary({ form, distanceKm, durationMinutes, totalCost, costPer
       <SummaryRow label="Başlangıç" value={form.fromText || '-'} />
       {form.waypoints.length > 0 && <SummaryRow label="Ara durak" value={form.waypoints.map((point) => point.name || point.formattedAddress || '-').join(' → ')} />}
       <SummaryRow label="Varış" value={form.toText || '-'} />
+      <SummaryRow label="Başlangıç saati" value={form.departureTime || '-'} />
+      <SummaryRow label="Varış saati" value={form.arrivalTime || '-'} />
       <SummaryRow label="Ulaşım türü" value={form.transportType || '-'} />
       <SummaryRow label="Tahmini km" value={formatKm(distanceKm)} />
       <SummaryRow label="Tahmini süre" value={minutesToDuration(durationMinutes)} />
@@ -434,6 +450,24 @@ function Field({ label, children }) {
 
 function SummaryRow({ label, value }) {
   return <div><span>{label}</span><strong>{value}</strong></div>;
+}
+
+function getRegisteredCompanyOptions(companies = [], transportType = '') {
+  const normalizedTransport = String(transportType || '').toLocaleLowerCase('tr-TR');
+  const options = companies
+    .filter(Boolean)
+    .filter((company) => {
+      if (typeof company === 'string') return true;
+      const category = String(company.category || '').toLocaleLowerCase('tr-TR');
+      if (!category) return true;
+      if (normalizedTransport === 'otobüs') return category === 'otobüs';
+      if (normalizedTransport === 'uçak') return category === 'uçak';
+      if (normalizedTransport === 'tren') return category === 'tren';
+      return true;
+    })
+    .map((company) => (typeof company === 'string' ? company : company.name))
+    .filter(Boolean);
+  return [...new Set(options)].sort((a, b) => a.localeCompare(b, 'tr'));
 }
 
 function createInitialForm(initialTrip) {
