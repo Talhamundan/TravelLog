@@ -1,6 +1,6 @@
 // Araç ve firma gibi küçük kullanıcı koleksiyonlarını yönetir.
 import { Pencil, Plus, Trash2, X } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import EmptyState from '../components/EmptyState';
 import { companyStats, vehicleStats } from '../utils/analytics';
 import { formatCurrency, formatKm } from '../utils/formatters';
@@ -16,10 +16,19 @@ export default function SimpleDirectoryPage({ title, description, items, fields,
   const [form, setForm] = useState({});
   const [editingId, setEditingId] = useState('');
   const [selectedId, setSelectedId] = useState('');
+  const [focusedFleetField, setFocusedFleetField] = useState(false);
   const formRef = useRef(null);
   const selectedItem = items.find((item) => item.id === selectedId) || items[0];
   const selectedStats = selectedItem ? (type === 'vehicles' ? vehicleStats(trips, selectedItem) : companyStats(trips, selectedItem)) : null;
   const vehicleGroups = type === 'vehicles' ? groupVehiclesByFleet(items, trips) : [];
+  const fleetSuggestions = useMemo(() => {
+    if (type !== 'vehicles') return [];
+    const query = String(form.name || '').toLocaleLowerCase('tr-TR').trim();
+    const names = [...new Set(items.map(vehicleFleetName).filter((name) => name !== 'Filo adı yok'))].sort((a, b) => a.localeCompare(b, 'tr'));
+    if (!query) return names.slice(0, 8);
+    return names.filter((name) => name.toLocaleLowerCase('tr-TR').includes(query)).slice(0, 8);
+  }, [form.name, items, type]);
+  const showFleetSuggestions = type === 'vehicles' && focusedFleetField && fleetSuggestions.length > 0;
 
   const submit = async (event) => {
     event.preventDefault();
@@ -68,6 +77,31 @@ export default function SimpleDirectoryPage({ title, description, items, fields,
               <CustomSelect value={form[field.key] || ''} options={fuelTypes} placeholder="Yakıt türü" onChange={(value) => setForm({ ...form, [field.key]: value })} />
             ) : field.key === 'category' ? (
               <CustomSelect value={form[field.key] || ''} options={companyCategories} placeholder="Kategori" onChange={(value) => setForm({ ...form, [field.key]: value })} />
+            ) : type === 'vehicles' && field.key === 'name' ? (
+              <div className="fleet-autocomplete">
+                <input
+                  value={form[field.key] || ''}
+                  onFocus={() => setFocusedFleetField(true)}
+                  onBlur={() => window.setTimeout(() => setFocusedFleetField(false), 120)}
+                  onChange={(event) => setForm({ ...form, [field.key]: event.target.value })}
+                />
+                {showFleetSuggestions && (
+                  <div className="location-suggestions fleet-suggestions" onMouseDown={(event) => event.preventDefault()}>
+                    {fleetSuggestions.map((name) => (
+                      <button
+                        key={name}
+                        type="button"
+                        onClick={() => {
+                          setForm({ ...form, [field.key]: name });
+                          setFocusedFleetField(false);
+                        }}
+                      >
+                        <span>{name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             ) : (
               <input
                 value={form[field.key] || ''}
