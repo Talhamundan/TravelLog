@@ -9,6 +9,10 @@
   text-rendering: optimizeLegibility;
 }
 
+html {
+  touch-action: manipulation;
+}
+
 /* Layer and form polish audit pass */
 :root {
   --z-content: 1;
@@ -3019,6 +3023,44 @@ th {
   gap: 12px;
 }
 
+.vehicle-fleet-list,
+.vehicle-fleet-group {
+  display: grid;
+  gap: 14px;
+}
+
+.vehicle-fleet-group + .vehicle-fleet-group {
+  padding-top: 16px;
+  border-top: 1px solid rgb(255 255 255 / 10%);
+}
+
+.vehicle-fleet-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: end;
+}
+
+.vehicle-fleet-head div {
+  display: grid;
+  gap: 3px;
+}
+
+.vehicle-fleet-head span,
+.vehicle-fleet-head small {
+  color: #93a4bc;
+  font-weight: 800;
+}
+
+.vehicle-fleet-head strong {
+  color: #ffffff;
+  font-size: 1.05rem;
+}
+
+.vehicle-fleet-head small {
+  text-align: right;
+}
+
 .vehicle-plate-card {
   position: relative;
   width: 100%;
@@ -3163,14 +3205,28 @@ th {
   margin: 0;
 }
 
-.vehicle-trip-list article {
+.vehicle-trip-item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 12px;
   align-items: center;
+  width: 100%;
   padding: 12px;
+  border: 0;
   border-radius: 12px;
   background: rgb(255 255 255 / 5%);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 140ms ease, transform 140ms ease;
+}
+
+.vehicle-trip-item:hover,
+.vehicle-trip-item:focus-visible {
+  transform: translateY(-1px);
+  background: rgb(96 165 250 / 12%);
+  outline: 1px solid rgb(96 165 250 / 34%);
 }
 
 .report-section {
@@ -3465,7 +3521,7 @@ body {
 .topbar-search {
   margin-right: auto;
   position: relative;
-  width: min(460px, 42vw);
+  width: min(380px, 34vw);
 }
 
 .topbar-search svg {
@@ -5369,7 +5425,7 @@ td {
 
 .topbar-search {
   position: relative;
-  width: min(560px, 42vw);
+  width: min(390px, 34vw);
 }
 
 .topbar-search input {
@@ -5490,6 +5546,79 @@ td {
     padding: 0 !important;
     color: transparent;
     background-position: 50% 50%;
+  }
+
+  input,
+  select,
+  textarea,
+  .app-input {
+    font-size: 16px;
+  }
+
+  .topbar-popover.notification-center {
+    position: fixed;
+    top: 64px;
+    right: 12px;
+    left: 12px;
+    width: auto;
+    max-width: none;
+    max-height: calc(100dvh - 76px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-radius: 12px;
+  }
+
+  .notification-center article {
+    align-items: flex-start;
+  }
+
+  .turkey-map-hero {
+    align-items: flex-start;
+  }
+
+  .turkey-progress-ring {
+    width: 76px;
+    height: 76px;
+  }
+
+  .turkey-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .turkey-map-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .turkey-map-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .turkey-map-search {
+    width: 100%;
+  }
+
+  .turkey-map-board {
+    padding: 8px;
+  }
+
+  .turkey-map-canvas {
+    grid-template-columns: repeat(20, 64px);
+    grid-template-rows: repeat(9, 50px);
+    min-width: 1375px;
+    padding: 12px;
+  }
+
+  .province-tile {
+    padding: 5px;
+  }
+
+  .province-tile strong {
+    font-size: 0.64rem;
+  }
+
+  .turkey-province-panel {
+    position: static;
   }
 }
 
@@ -5626,7 +5755,7 @@ td {
   z-index: 260;
   display: grid;
   gap: 10px;
-  width: min(620px, calc(100vw - 32px));
+  width: min(420px, calc(100vw - 32px));
   max-height: min(560px, calc(100vh - 120px));
   overflow-y: auto;
   padding: 12px;
@@ -5730,6 +5859,14 @@ td {
   justify-content: space-between;
   gap: 12px;
   cursor: pointer;
+}
+
+.notification-center article > div {
+  min-width: 0;
+}
+
+.notification-center article p {
+  overflow-wrap: anywhere;
 }
 
 .notification-center article.read {
@@ -5988,6 +6125,629 @@ td {
   color: #fca5a5;
 }
 
+.istanbul-transport-page {
+  --istanbul-card: linear-gradient(180deg, rgb(20 34 52 / 90%), rgb(12 24 39 / 94%));
+}
+
+.istanbul-heading {
+  align-items: stretch;
+}
+
+.page-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 7px;
+  color: #93c5fd;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.istanbul-heading h1 {
+  margin: 0;
+  color: #f8fbff;
+  font-size: clamp(1.55rem, 3vw, 2.25rem);
+  letter-spacing: 0;
+}
+
+.istanbul-heading p {
+  max-width: 760px;
+  margin: 6px 0 0;
+  color: #9fb0c8;
+  line-height: 1.55;
+}
+
+.istanbul-live-card {
+  display: grid;
+  align-content: center;
+  min-width: 210px;
+  padding: 14px 16px;
+  border: 1px solid rgb(96 165 250 / 20%);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgb(37 99 235 / 18%), rgb(20 184 166 / 10%)),
+    rgb(255 255 255 / 4%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 5%);
+}
+
+.istanbul-live-card strong {
+  color: #f8fbff;
+}
+
+.istanbul-live-card span {
+  color: #93c5fd;
+  font-size: 0.82rem;
+  font-weight: 760;
+}
+
+.istanbul-search-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.istanbul-search-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.istanbul-search-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.istanbul-place-field {
+  position: relative;
+}
+
+.istanbul-place-input {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.istanbul-place-input svg {
+  position: absolute;
+  left: 12px;
+  z-index: 1;
+  color: #7d8ca3;
+}
+
+.istanbul-place-input svg:last-child {
+  right: 12px;
+  left: auto;
+  color: #93c5fd;
+}
+
+.istanbul-place-input.selected svg:last-child {
+  color: #86efac;
+}
+
+.istanbul-place-input input {
+  padding-right: 36px;
+  padding-left: 36px;
+}
+
+.istanbul-place-suggestions {
+  position: absolute;
+  z-index: 320;
+  top: calc(100% + 7px);
+  right: 0;
+  left: 0;
+  display: grid;
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid rgb(148 163 184 / 14%);
+  border-radius: 8px;
+  background: #0b1728;
+  box-shadow: 0 18px 45px rgb(0 0 0 / 36%);
+}
+
+.istanbul-place-suggestions button {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  gap: 3px 9px;
+  width: 100%;
+  min-height: auto;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #dbeafe;
+  text-align: left;
+}
+
+.istanbul-place-suggestions button + button {
+  border-top: 1px solid rgb(148 163 184 / 10%);
+}
+
+.istanbul-place-suggestions button svg {
+  grid-row: 1 / 3;
+  margin-top: 2px;
+  color: #60a5fa;
+}
+
+.istanbul-place-suggestions button:hover {
+  background: rgb(37 99 235 / 20%);
+}
+
+.istanbul-place-suggestions span,
+.istanbul-place-suggestions small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.istanbul-place-suggestions small,
+.istanbul-place-error {
+  color: #93c5fd;
+}
+
+.istanbul-place-error {
+  font-size: 0.74rem;
+  font-weight: 760;
+}
+
+.istanbul-inline-alert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 12px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 780;
+}
+
+.istanbul-inline-alert.warning {
+  border: 1px solid rgb(245 158 11 / 24%);
+  background: rgb(245 158 11 / 12%);
+  color: #fde68a;
+}
+
+.istanbul-inline-alert.error {
+  border: 1px solid rgb(248 113 113 / 24%);
+  background: rgb(239 68 68 / 12%);
+  color: #fecaca;
+}
+
+.spin-icon {
+  animation: spin 850ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.istanbul-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.istanbul-metric {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid rgb(148 163 184 / 12%);
+  border-radius: 8px;
+  background: var(--istanbul-card);
+}
+
+.istanbul-metric > span {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #2563eb, #14b8a6);
+}
+
+.istanbul-metric div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.istanbul-metric small {
+  color: #9fb0c8;
+  font-weight: 760;
+}
+
+.istanbul-metric strong {
+  color: #f8fbff;
+  font-size: 1.15rem;
+}
+
+.istanbul-results-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.42fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.istanbul-route-list {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.istanbul-empty {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  min-height: 220px;
+  padding: 24px;
+  color: #9fb0c8;
+  text-align: center;
+  background: var(--istanbul-card);
+}
+
+.istanbul-empty strong {
+  color: #f8fbff;
+}
+
+.istanbul-route-card {
+  position: relative;
+  display: grid;
+  gap: 13px;
+  padding: 15px;
+  overflow: hidden;
+  background: var(--istanbul-card);
+  cursor: pointer;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.istanbul-route-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--route-accent);
+}
+
+.istanbul-route-card:hover,
+.istanbul-route-card.selected {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--route-accent) 50%, transparent);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--route-accent) 12%, transparent), transparent 42%),
+    var(--istanbul-card);
+}
+
+.istanbul-route-card-head,
+.istanbul-route-card-head > div,
+.istanbul-route-actions,
+.istanbul-route-stats,
+.istanbul-lines,
+.istanbul-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.istanbul-route-card-head {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.istanbul-route-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  color: var(--route-accent);
+  background: color-mix(in srgb, var(--route-accent) 14%, transparent);
+}
+
+.istanbul-route-card h2 {
+  margin: 0;
+  color: #f8fbff;
+  font-size: 1rem;
+}
+
+.istanbul-route-card p {
+  margin: 3px 0 0;
+  color: #8fa0b8;
+  font-size: 0.8rem;
+}
+
+.istanbul-badge-row,
+.istanbul-lines,
+.istanbul-route-stats,
+.istanbul-route-actions {
+  flex-wrap: wrap;
+}
+
+.istanbul-badge-row span,
+.istanbul-lines span {
+  width: fit-content;
+  padding: 5px 8px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 900;
+}
+
+.istanbul-badge-row span {
+  color: #bfdbfe;
+  background: rgb(37 99 235 / 18%);
+}
+
+.istanbul-lines span {
+  color: #d9f99d;
+  background: rgb(132 204 22 / 13%);
+  border: 1px solid rgb(132 204 22 / 16%);
+}
+
+.istanbul-route-stats span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #c9d7ea;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.istanbul-step-preview {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 19px;
+  color: #9fb0c8;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.istanbul-route-actions {
+  justify-content: flex-end;
+  padding-top: 2px;
+}
+
+.istanbul-detail-panel {
+  position: sticky;
+  top: 86px;
+  min-width: 0;
+}
+
+.istanbul-timeline {
+  display: grid;
+  gap: 0;
+}
+
+.istanbul-timeline article {
+  position: relative;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 11px;
+  padding-bottom: 16px;
+}
+
+.istanbul-timeline article:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: 14px;
+  top: 32px;
+  bottom: 0;
+  width: 1px;
+  background: rgb(96 165 250 / 26%);
+}
+
+.istanbul-timeline b {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  color: #e0f2fe;
+  background: rgb(37 99 235 / 26%);
+  border: 1px solid rgb(96 165 250 / 28%);
+  font-size: 0.78rem;
+}
+
+.istanbul-timeline div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.istanbul-timeline strong {
+  color: #f8fbff;
+  line-height: 1.35;
+}
+
+.istanbul-timeline span,
+.istanbul-detail-empty {
+  color: #8fa0b8;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.istanbul-map-panel {
+  overflow: hidden;
+}
+
+.istanbul-real-map-wrap {
+  position: relative;
+  min-height: 420px;
+  overflow: hidden;
+  border: 1px solid rgb(148 163 184 / 10%);
+  border-radius: 8px;
+  background: #071120;
+}
+
+.istanbul-real-map {
+  min-height: 420px;
+  height: min(58vh, 620px);
+  border-radius: 8px;
+}
+
+.istanbul-map-legend {
+  position: absolute;
+  z-index: 450;
+  right: 14px;
+  bottom: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+  max-width: min(560px, calc(100% - 28px));
+  pointer-events: none;
+}
+
+.istanbul-map-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border: 1px solid color-mix(in srgb, var(--legend-color) 38%, transparent);
+  border-radius: 999px;
+  background: rgb(2 6 23 / 78%);
+  color: #e5edf8;
+  font-size: 0.74rem;
+  font-weight: 900;
+  backdrop-filter: blur(10px);
+}
+
+.istanbul-map-legend svg {
+  color: var(--legend-color);
+}
+
+.istanbul-map-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  padding: 6px 9px;
+  border-radius: 999px;
+  color: #bae6fd;
+  background: rgb(14 165 233 / 14%);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.istanbul-map-canvas {
+  position: relative;
+  min-height: 320px;
+  overflow: hidden;
+  border: 1px solid rgb(148 163 184 / 10%);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 22% 28%, rgb(56 189 248 / 12%), transparent 28%),
+    radial-gradient(circle at 72% 72%, rgb(34 197 94 / 10%), transparent 27%),
+    #071120;
+}
+
+.istanbul-map-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgb(148 163 184 / 8%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(148 163 184 / 8%) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: linear-gradient(180deg, transparent, #000 15%, #000 85%, transparent);
+}
+
+.istanbul-map-line {
+  position: absolute;
+  inset: 18% 10% 20% 12%;
+  border-bottom: 4px solid rgb(56 189 248 / 78%);
+  border-left: 4px solid rgb(56 189 248 / 70%);
+  border-radius: 90px 0 0 90px;
+  transform: skew(-10deg);
+  box-shadow: 0 0 28px rgb(56 189 248 / 22%);
+}
+
+.istanbul-map-line i {
+  position: absolute;
+  display: block;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: #e0f2fe;
+  box-shadow: 0 0 18px rgb(56 189 248 / 70%);
+}
+
+.istanbul-map-line i:nth-child(1) { left: 4%; bottom: -8px; }
+.istanbul-map-line i:nth-child(2) { left: 34%; bottom: -8px; }
+.istanbul-map-line i:nth-child(3) { left: 67%; bottom: -8px; }
+.istanbul-map-line i:nth-child(4) { right: 4%; bottom: -8px; }
+
+.istanbul-map-copy {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  padding: 24px;
+  color: #dbeafe;
+  text-align: center;
+}
+
+.istanbul-map-copy > span {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #2563eb, #14b8a6);
+}
+
+.istanbul-map-copy strong {
+  font-size: 1.08rem;
+}
+
+.istanbul-map-copy p {
+  max-width: 560px;
+  margin: 0;
+  color: #9fb0c8;
+}
+
+.istanbul-map-pin {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: min(240px, 42vw);
+  padding: 7px 10px;
+  border: 1px solid rgb(148 163 184 / 18%);
+  border-radius: 999px;
+  background: rgb(2 6 23 / 72%);
+  color: #e5edf8;
+  font-size: 0.76rem;
+  font-weight: 850;
+  backdrop-filter: blur(10px);
+}
+
+.istanbul-map-pin span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.istanbul-map-pin.start {
+  left: 7%;
+  top: 20%;
+}
+
+.istanbul-map-pin.finish {
+  right: 7%;
+  bottom: 19%;
+}
+
 .planner-card-status small {
   display: inline-flex;
   align-items: center;
@@ -6188,6 +6948,470 @@ td {
   background: rgb(37 99 235 / 12%);
   font-size: 0.72rem;
   font-weight: 850;
+}
+
+.turkey-map-page {
+  gap: 10px;
+}
+
+.turkey-map-hero {
+  align-items: center;
+  min-height: 0;
+  padding-block: 4px 2px;
+}
+
+.turkey-map-hero h1 {
+  font-size: clamp(2.1rem, 3vw, 3.25rem);
+}
+
+.turkey-map-hero p {
+  margin-top: 8px;
+  font-size: 0.95rem;
+}
+
+.turkey-progress-ring {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 86px;
+  height: 86px;
+  flex: 0 0 86px;
+  border: 1px solid rgb(34 197 94 / 32%);
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at center, #0b1728 57%, transparent 59%),
+    conic-gradient(#22c55e var(--progress, 0%), rgb(148 163 184 / 14%) 0);
+  box-shadow: 0 18px 45px rgb(0 0 0 / 24%);
+  text-align: center;
+}
+
+.turkey-progress-ring strong {
+  color: #f8fafc;
+  font-size: 0.98rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.turkey-progress-ring span {
+  color: #86efac;
+  font-size: 0.7rem;
+  line-height: 1;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.turkey-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.turkey-kpi-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 62px;
+  padding: 10px 12px;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgb(15 23 42 / 88%), rgb(8 15 28 / 92%));
+}
+
+.turkey-kpi-card > span {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  color: #ffffff;
+}
+
+.turkey-kpi-card.green > span { background: linear-gradient(135deg, #16a34a, #22c55e); }
+.turkey-kpi-card.red > span { background: linear-gradient(135deg, #dc2626, #f97316); }
+.turkey-kpi-card.amber > span { background: linear-gradient(135deg, #d97706, #facc15); }
+.turkey-kpi-card.blue > span { background: linear-gradient(135deg, #2563eb, #38bdf8); }
+
+.turkey-kpi-card strong {
+  display: block;
+  color: #f8fafc;
+  font-size: 1.05rem;
+}
+
+.turkey-kpi-card small {
+  color: #9fb0c7;
+  font-size: 0.76rem;
+  font-weight: 750;
+}
+
+.turkey-map-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 14px;
+  align-items: start;
+}
+
+.turkey-map-main {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.turkey-map-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+}
+
+.turkey-map-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: min(340px, 100%);
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid rgb(148 163 184 / 16%);
+  border-radius: 8px;
+  background: rgb(2 6 23 / 34%);
+  color: #93a4bc;
+}
+
+.turkey-map-search input {
+  width: 100%;
+  min-height: 36px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.turkey-map-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+}
+
+.turkey-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.turkey-theme-toggle {
+  position: static;
+}
+
+.turkey-map-tabs button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgb(148 163 184 / 16%);
+  border-radius: 999px;
+  background: rgb(15 23 42 / 72%);
+  color: #aebbd0;
+  font-size: 0.76rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.turkey-map-tabs button.active {
+  border-color: rgb(34 197 94 / 38%);
+  background: rgb(22 163 74 / 20%);
+  color: #dcfce7;
+}
+
+.turkey-map-board {
+  padding: 14px;
+  overflow-x: auto;
+}
+
+.turkey-real-map-board {
+  overflow: hidden;
+}
+
+.turkey-leaflet-map {
+  height: min(62vh, 640px);
+  min-height: 520px;
+  border-radius: 10px;
+}
+
+.turkey-popup-card {
+  display: grid;
+  gap: 3px;
+}
+
+.turkey-popup-card small {
+  color: #7dd3fc;
+  font-weight: 800;
+}
+
+.turkey-province-label {
+  border: 0;
+  border-radius: 5px;
+  background: rgb(2 6 23 / 44%);
+  color: #dbeafe;
+  box-shadow: none;
+  font-size: 0.62rem;
+  font-weight: 900;
+  line-height: 1;
+  padding: 3px 5px;
+  pointer-events: none;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 70%);
+  white-space: nowrap;
+}
+
+.turkey-province-label::before {
+  display: none;
+}
+
+.turkey-province-label.visited {
+  background: rgb(22 101 52 / 58%);
+  color: #dcfce7;
+}
+
+.turkey-province-label.selected {
+  background: rgb(255 255 255 / 88%);
+  color: #0f172a;
+}
+
+.turkey-map-canvas {
+  display: grid;
+  grid-template-columns: repeat(20, 72px);
+  grid-template-rows: repeat(9, 54px);
+  gap: 5px;
+  min-width: 1535px;
+  padding: 18px;
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgb(15 23 42 / 78%), rgb(8 15 28 / 86%)),
+    radial-gradient(circle at 18% 24%, rgb(56 189 248 / 12%), transparent 26%),
+    radial-gradient(circle at 80% 70%, rgb(34 197 94 / 10%), transparent 30%);
+}
+
+.province-tile {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  min-height: 0;
+  padding: 6px;
+  border: 1px solid rgb(148 163 184 / 18%);
+  border-radius: 8px;
+  background: rgb(30 41 59 / 78%);
+  color: #cbd5e1;
+  cursor: pointer;
+  transition: transform 140ms ease, border-color 140ms ease, background 140ms ease, opacity 140ms ease;
+}
+
+.province-tile:hover,
+.province-tile.selected {
+  transform: translateY(-2px);
+  border-color: rgb(56 189 248 / 58%);
+}
+
+.province-tile.visited {
+  border-color: rgb(34 197 94 / 46%);
+  background: linear-gradient(145deg, rgb(22 163 74 / 78%), rgb(21 128 61 / 82%));
+  color: #f0fdf4;
+}
+
+.province-tile.trip-linked:not(.visited) {
+  border-color: rgb(250 204 21 / 42%);
+}
+
+.province-tile.selected {
+  box-shadow: 0 0 0 2px rgb(56 189 248 / 26%), 0 14px 30px rgb(0 0 0 / 24%);
+}
+
+.province-tile.dimmed {
+  opacity: 0.24;
+}
+
+.province-tile span {
+  font-size: 0.66rem;
+  font-weight: 900;
+  opacity: 0.78;
+}
+
+.province-tile strong {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.69rem;
+  font-weight: 850;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+}
+
+.turkey-province-panel {
+  position: sticky;
+  top: 72px;
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.turkey-province-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.turkey-province-head > span {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #2563eb, #22c55e);
+  color: #ffffff;
+  font-weight: 950;
+}
+
+.turkey-province-head h2 {
+  margin: 0;
+  color: #f8fafc;
+}
+
+.turkey-province-head small {
+  color: #9fb0c7;
+  font-weight: 800;
+}
+
+.turkey-visit-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.turkey-visit-toggle button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 42px;
+  border: 1px solid rgb(148 163 184 / 14%);
+  border-radius: 8px;
+  background: rgb(15 23 42 / 72%);
+  color: #aebbd0;
+  font-weight: 850;
+}
+
+.turkey-visit-toggle button.active:first-child {
+  border-color: rgb(34 197 94 / 42%);
+  background: rgb(22 163 74 / 22%);
+  color: #dcfce7;
+}
+
+.turkey-visit-toggle button.active:last-child {
+  border-color: rgb(248 113 113 / 34%);
+  background: rgb(220 38 38 / 14%);
+  color: #fecaca;
+}
+
+.turkey-note-field {
+  display: grid;
+  gap: 8px;
+}
+
+.turkey-note-field span {
+  color: #cbd5e1;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.turkey-note-field textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+.turkey-save-button {
+  width: 100%;
+}
+
+.turkey-province-meta {
+  display: grid;
+  gap: 8px;
+}
+
+.turkey-province-meta span {
+  padding: 9px 10px;
+  border: 1px solid rgb(148 163 184 / 12%);
+  border-radius: 8px;
+  background: rgb(2 6 23 / 24%);
+  color: #9fb0c7;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+@media (max-width: 980px) {
+  .turkey-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .turkey-map-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .turkey-province-panel {
+    position: static;
+  }
+}
+
+@media (max-width: 720px) {
+  .turkey-map-hero {
+    align-items: flex-start;
+  }
+
+  .turkey-progress-ring {
+    width: 76px;
+    height: 76px;
+  }
+
+  .turkey-map-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .turkey-toolbar-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .turkey-theme-toggle {
+    width: 100%;
+  }
+
+  .turkey-map-search {
+    width: 100%;
+  }
+
+  .turkey-map-board {
+    padding: 8px;
+  }
+
+  .turkey-leaflet-map {
+    height: 62vh;
+    min-height: 430px;
+  }
+
+  .turkey-map-canvas {
+    grid-template-columns: repeat(20, 64px);
+    grid-template-rows: repeat(9, 50px);
+    min-width: 1375px;
+    padding: 12px;
+  }
+
+  .province-tile {
+    padding: 5px;
+  }
+
+  .province-tile strong {
+    font-size: 0.64rem;
+  }
 }
 
 .wizard-map-info strong {
@@ -6557,6 +7781,19 @@ td {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .istanbul-search-grid,
+  .istanbul-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .istanbul-results-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .istanbul-detail-panel {
+    position: static;
+  }
+
   .wizard-layout,
   .wizard-map-card {
     grid-template-columns: 1fr;
@@ -6573,6 +7810,45 @@ td {
     grid-template-columns: 1fr;
     gap: 8px;
     padding: 10px;
+  }
+
+  .istanbul-heading,
+  .istanbul-route-card-head {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .istanbul-live-card {
+    min-width: 0;
+  }
+
+  .istanbul-search-grid,
+  .istanbul-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .istanbul-search-actions,
+  .istanbul-route-actions {
+    justify-content: stretch;
+  }
+
+  .istanbul-search-actions button,
+  .istanbul-route-actions button {
+    width: 100%;
+  }
+
+  .istanbul-route-stats {
+    display: grid;
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .istanbul-map-canvas {
+    min-height: 360px;
+  }
+
+  .istanbul-map-copy {
+    padding: 72px 16px;
   }
 
   .wizard-stepper > div:not(:last-child)::after {

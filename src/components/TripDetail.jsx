@@ -28,7 +28,7 @@ export default function TripDetail({ trip, onClose, onEdit, onDelete }) {
           <Detail label="Tarih" value={formatDate(normalizedTrip.date)} />
           <Detail label="Saat" value={normalizedTrip.departureTime || normalizedTrip.time || '-'} />
           <Detail label="Ulaşım" value={normalizedTrip.transportType} />
-          <Detail label={normalizedTrip.transportType === 'Araç' ? 'Araç / plaka' : 'Firma'} value={tripProviderLabel(normalizedTrip)} />
+          <Detail label={normalizedTrip.transportType === 'Araç' ? 'Filo / plaka' : 'Firma'} value={tripProviderLabel(normalizedTrip)} />
           <Detail label="Mesafe" value={normalizedTrip.distanceKm > 0 ? formatKm(normalizedTrip.distanceKm) : 'Eksik'} />
           <Detail label="Süre" value={normalizedTrip.durationMinutes > 0 ? minutesToDuration(normalizedTrip.durationMinutes) : '-'} />
           <Detail label="Toplam masraf" value={formatCurrency(normalizedTrip.totalCost, normalizedTrip.currency)} />
@@ -38,7 +38,7 @@ export default function TripDetail({ trip, onClose, onEdit, onDelete }) {
         </div>
         {isVehicleTrip && (
           <div className="detail-grid vehicle-breakdown">
-            <Detail label="Araç" value={normalizedTrip.vehicleName || '-'} />
+            <Detail label="Filo" value={normalizedTrip.vehicleName || '-'} />
             <Detail label="Plaka" value={normalizedTrip.vehiclePlate || normalizedTrip.plate || '-'} />
             <Detail label="Yakıt türü" value={normalizedTrip.fuelType || '-'} />
             <Detail label="Yakıt" value={formatCurrency(normalizedTrip.fuelCost, normalizedTrip.currency)} />

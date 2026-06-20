@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { geocodeOsmPlace } from '../../services/osmRouteService';
 import { cityLocationFromText, travelLocations } from '../../utils/locations';
 
-export default function OsmPlaceInput({ label, value, selectedPlace, savedLocations = [], placeholder, onChange, onPlaceSelect, required = false }) {
+export default function OsmPlaceInput({ label, value, selectedPlace, frequentLocations = [], savedLocations = [], placeholder, onChange, onPlaceSelect, required = false }) {
   const [text, setText] = useState(value || selectedPlace?.name || '');
   const [focused, setFocused] = useState(false);
   const [remoteResults, setRemoteResults] = useState([]);
@@ -36,14 +36,12 @@ export default function OsmPlaceInput({ label, value, selectedPlace, savedLocati
 
   const localSuggestions = useMemo(() => {
     const normalized = text.toLocaleLowerCase('tr-TR').trim();
-    const all = [...normalizeSavedLocations(savedLocations), ...travelLocations];
-    if (!normalized) return all.slice(0, 4);
+    const all = [...normalizeFrequentLocations(frequentLocations), ...normalizeSavedLocations(savedLocations), ...travelLocations];
+    if (!normalized) return uniquePlaces(all).slice(0, 6);
     const cityLocation = cityLocationFromText(text);
-    const matches = all
-      .filter((item) => [item.name, item.city, item.district, item.type, ...(item.aliases || [])].filter(Boolean).some((part) => part.toLocaleLowerCase('tr-TR').includes(normalized)))
-      .slice(0, 4);
-    return cityLocation ? [cityLocation, ...matches.filter((item) => item.name !== cityLocation.name)].slice(0, 4) : matches;
-  }, [savedLocations, text]);
+    const matches = uniquePlaces(all.filter((item) => [item.name, item.city, item.district, item.type, ...(item.aliases || [])].filter(Boolean).some((part) => part.toLocaleLowerCase('tr-TR').includes(normalized))));
+    return cityLocation ? [cityLocation, ...matches.filter((item) => item.name !== cityLocation.name)].slice(0, 6) : matches.slice(0, 6);
+  }, [frequentLocations, savedLocations, text]);
 
   const suggestions = [...localSuggestions, ...remoteResults].filter((item, index, list) => list.findIndex((other) => `${other.lat},${other.lng}` === `${item.lat},${item.lng}`) === index).slice(0, 8);
   const invalid = required && touched && text && !selectedPlace?.lat;
@@ -122,4 +120,35 @@ function normalizeSavedLocations(items = []) {
       provider: item.provider || 'saved',
     }))
     .filter((item) => item.name && Number.isFinite(item.lat) && Number.isFinite(item.lng));
+}
+
+function normalizeFrequentLocations(items = []) {
+  return items
+    .map((item) => ({
+      ...item,
+      name: item.name || item.label || item.title || item.formattedAddress || 'Son kullanılan konum',
+      formattedAddress: item.formattedAddress || item.notes || '',
+      city: item.city || '',
+      district: item.district || '',
+      type: item.type || 'Son kullanılan',
+      lat: Number(item.lat),
+      lng: Number(item.lng),
+      aliases: [item.shortName, item.label, item.notes, item.formattedAddress].filter(Boolean),
+      provider: item.provider || 'frequent',
+    }))
+    .filter((item) => item.name && Number.isFinite(item.lat) && Number.isFinite(item.lng));
+}
+
+function uniquePlaces(items = []) {
+  return items.filter((item, index, list) => {
+    const key = placeKey(item);
+    return list.findIndex((other) => placeKey(other) === key) === index;
+  });
+}
+
+function placeKey(item = {}) {
+  const lat = Number(item.lat);
+  const lng = Number(item.lng);
+  if (Number.isFinite(lat) && Number.isFinite(lng)) return `${lat.toFixed(5)},${lng.toFixed(5)}`;
+  return String(item.name || '').toLocaleLowerCase('tr-TR').trim();
 }

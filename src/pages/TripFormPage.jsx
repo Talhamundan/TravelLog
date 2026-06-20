@@ -31,7 +31,7 @@ const transportCards = [
 
 const fuelTypes = ['Benzin', 'Dizel', 'LPG', 'Hibrit', 'Elektrik', 'Diğer'];
 
-export default function TripFormPage({ initialTrip, companies, vehicles, savedLocations = [], onSave, onCancel }) {
+export default function TripFormPage({ initialTrip, companies, vehicles, trips = [], savedLocations = [], onSave, onCancel }) {
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [manualDistance, setManualDistance] = useState(Boolean(initialTrip?.distanceManuallyEdited));
@@ -157,7 +157,7 @@ export default function TripFormPage({ initialTrip, companies, vehicles, savedLo
       <div className="wizard-layout">
         <section className="panel wizard-card">
           {step === 0 && <TransportTypeStep form={form} update={update} />}
-          {step === 1 && <RouteStep form={form} savedLocations={savedLocations} updateLocation={updateLocation} update={update} />}
+          {step === 1 && <RouteStep form={form} trips={trips} savedLocations={savedLocations} updateLocation={updateLocation} update={update} />}
           {step === 2 && <DetailsStep form={form} update={update} companies={companies} vehicles={vehicles} />}
           {step === 3 && (
             <CostStep
@@ -233,7 +233,8 @@ function TransportTypeStep({ form, update }) {
   );
 }
 
-function RouteStep({ form, savedLocations = [], updateLocation, update }) {
+function RouteStep({ form, trips = [], savedLocations = [], updateLocation, update }) {
+  const recentLocations = useMemo(() => buildRecentLocations(trips), [trips]);
   const addWaypoint = () => update('waypoints', [...form.waypoints, { order: form.waypoints.length }]);
   const swapRoute = () => {
     update('routeSwapTick', Date.now());
@@ -263,6 +264,7 @@ function RouteStep({ form, savedLocations = [], updateLocation, update }) {
           label="Başlangıç noktası"
           value={form.fromText}
           selectedPlace={form.fromLocation}
+          frequentLocations={recentLocations}
           savedLocations={savedLocations}
           placeholder="İstanbul Ümraniye Dudullu Otogarı"
           required
@@ -276,6 +278,7 @@ function RouteStep({ form, savedLocations = [], updateLocation, update }) {
           label="Varış noktası"
           value={form.toText}
           selectedPlace={form.toLocation}
+          frequentLocations={recentLocations}
           savedLocations={savedLocations}
           placeholder="Tokat Otogarı"
           required
@@ -299,6 +302,7 @@ function RouteStep({ form, savedLocations = [], updateLocation, update }) {
             <OsmPlaceInput
               value={point.name || ''}
               selectedPlace={point.lat && point.lng ? point : null}
+              frequentLocations={recentLocations}
               savedLocations={savedLocations}
               placeholder="Bursa Şantiye, Ankara AŞTİ..."
               required
@@ -318,6 +322,18 @@ function RouteStep({ form, savedLocations = [], updateLocation, update }) {
 
 function DetailsStep({ form, update, companies, vehicles }) {
   const companyOptions = getRegisteredCompanyOptions(companies, form.transportType);
+  const selectedVehicleId = form.vehicleId || vehicles.find((vehicle) => formatPlate(vehicle.plate || '') === formatPlate(form.plate || form.vehiclePlate || ''))?.id || '';
+
+  useEffect(() => {
+    if (form.transportType !== 'Araç' || form.vehicleId || !selectedVehicleId) return;
+    const vehicle = vehicles.find((item) => item.id === selectedVehicleId);
+    if (!vehicle) return;
+    update('vehicleId', vehicle.id);
+    update('vehicleName', vehicle.name || '');
+    update('plate', formatPlate(vehicle.plate || ''));
+    update('fuelType', vehicle.fuelType || form.fuelType);
+  }, [form.fuelType, form.plate, form.transportType, form.vehicleId, form.vehiclePlate, selectedVehicleId, update, vehicles]);
+
   return (
     <>
       <StepTitle number="3" title={`${form.transportType} detayları`} desc="Zaman, firma ve bilet bilgilerini girin." />
@@ -327,16 +343,15 @@ function DetailsStep({ form, update, companies, vehicles }) {
         <Field label="Varış saati"><input type="time" value={form.arrivalTime} onChange={(event) => update('arrivalTime', event.target.value)} /></Field>
         {form.transportType === 'Araç' ? (
           <>
-            <Field label="Araç / plaka">
-              <CustomSelect value={form.vehicleId || form.plate} options={vehicles.map((vehicle) => ({ value: vehicle.id || vehicle.plate, label: [vehicle.plate, vehicle.name].filter(Boolean).join(' · ') }))} placeholder="Plaka seç" onChange={(value) => {
-                const vehicle = vehicles.find((item) => item.id === value || item.plate === value);
+            <Field label="Filo / plaka">
+              <CustomSelect value={selectedVehicleId} options={vehicles.map((vehicle) => ({ value: vehicle.id, label: [vehicle.plate, vehicle.name].filter(Boolean).join(' · ') }))} placeholder="Plaka seç" onChange={(value) => {
+                const vehicle = vehicles.find((item) => item.id === value);
                 update('vehicleId', vehicle?.id || '');
                 update('vehicleName', vehicle?.name || '');
-                update('plate', formatPlate(vehicle?.plate || value));
+                update('plate', formatPlate(vehicle?.plate || ''));
                 update('fuelType', vehicle?.fuelType || form.fuelType);
               }} />
             </Field>
-            <Field label="Plaka manuel"><input value={form.plate} onChange={(event) => update('plate', formatPlate(event.target.value))} placeholder="34 EJC 537" /></Field>
             <Field label="Yakıt türü"><CustomSelect value={form.fuelType} options={fuelTypes} placeholder="Yakıt türü" onChange={(value) => update('fuelType', value)} /></Field>
           </>
         ) : (
@@ -431,7 +446,7 @@ function LiveTripSummary({ form, distanceKm, durationMinutes, totalCost, costPer
       <SummaryRow label="Tahmini süre" value={minutesToDuration(durationMinutes)} />
       <SummaryRow label="Toplam masraf" value={formatCurrency(totalCost, form.currency)} />
       <SummaryRow label="Km başı maliyet" value={formatCurrency(costPerKm, form.currency)} />
-      <SummaryRow label="Firma / araç" value={form.transportType === 'Araç' ? form.plate || form.vehicleName || '-' : form.company || '-'} />
+      <SummaryRow label="Firma / filo" value={form.transportType === 'Araç' ? form.plate || form.vehicleName || '-' : form.company || '-'} />
       <div className="summary-missing">
         <strong>Eksik zorunlu alanlar</strong>
         {missing.length ? missing.map((item) => <span key={item}>{item}</span>) : <span className="ok">Tamam</span>}
@@ -489,6 +504,48 @@ function createInitialForm(initialTrip) {
   };
 }
 
+function buildRecentLocations(trips = []) {
+  const recent = new Map();
+  [...trips]
+    .sort((a, b) => String(b.date || b.createdAt || '').localeCompare(String(a.date || a.createdAt || '')))
+    .forEach((trip) => {
+    [trip.fromLocation || trip.from, trip.toLocation || trip.to, ...(trip.waypoints || []), ...(Array.isArray(trip.stops) ? trip.stops : [])].forEach((location) => {
+      const item = normalizeRecentLocation(location);
+      if (!item) return;
+      const key = recentLocationKey(item);
+      if (!recent.has(key)) recent.set(key, { ...item, lastUsedDate: trip.date || trip.createdAt || '', provider: 'recent' });
+    });
+  });
+  return [...recent.values()].slice(0, 24);
+}
+
+function normalizeRecentLocation(location) {
+  if (!location) return null;
+  if (typeof location === 'string') {
+    const found = findTravelLocation(location);
+    return found?.lat && found?.lng ? found : null;
+  }
+  const lat = Number(location.lat ?? location.coords?.[0]);
+  const lng = Number(location.lng ?? location.coords?.[1]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  const name = location.name || location.pointName || location.formattedAddress || location.label || location.city || '';
+  if (!name) return null;
+  return {
+    ...location,
+    name,
+    formattedAddress: location.formattedAddress || [location.district, location.city, location.type].filter(Boolean).join(' · '),
+    city: location.city || '',
+    district: location.district || '',
+    type: location.type || 'Son kullanılan',
+    lat,
+    lng,
+  };
+}
+
+function recentLocationKey(location) {
+  return `${Number(location.lat).toFixed(5)},${Number(location.lng).toFixed(5)}`;
+}
+
 function getMissingFields(form, step) {
   const missing = [];
   if (!form.transportType) missing.push('Ulaşım türü');
@@ -500,7 +557,7 @@ function getMissingFields(form, step) {
   }
   if (step >= 2) {
     if (!form.date) missing.push('Tarih');
-    if (form.transportType === 'Araç' && !form.plate && !form.vehicleId) missing.push('Araç/plaka');
+    if (form.transportType === 'Araç' && !form.vehicleId) missing.push('Araç/plaka');
     if (form.transportType !== 'Araç' && form.transportType !== 'Diğer' && !form.company) missing.push('Firma');
   }
   if (step >= 3) {

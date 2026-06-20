@@ -11,6 +11,15 @@ export const sumBy = (items, key) => items.reduce((total, item) => total + toNum
 
 export const routeKey = (trip) => getTripRouteTitle(trip);
 
+export const tripVehiclePlate = (trip = {}) => trip.vehiclePlate || trip.plate || trip.licensePlate || '';
+
+export const vehicleIdentityKey = (trip = {}) => {
+  const plate = tripVehiclePlate(trip);
+  if (plate) return plate;
+  if (trip.vehicleId) return `Araç #${trip.vehicleId}`;
+  return trip.vehicleName || trip.company || routeKey(trip);
+};
+
 export const groupTrips = (trips, getKey) =>
   trips.reduce((acc, trip) => {
     const key = getKey(trip) || 'Belirtilmedi';
@@ -106,7 +115,7 @@ export const buildReports = (trips) => ({
   routes: groupedSummary(trips, routeKey),
   vehicleCosts: groupedSummary(
     trips.filter((trip) => normalizeTransportType(trip.transportType) === 'Araç'),
-    (trip) => trip.vehicleName || trip.company || routeKey(trip),
+    vehicleIdentityKey,
   ),
 });
 
@@ -117,9 +126,8 @@ export const vehicleStats = (trips, vehicle) => {
   const rows = trips.filter(
     (trip) =>
       trip.vehicleId === vehicle?.id ||
-      (normalizedPlate && plateKey(trip.plate) === normalizedPlate) ||
-      (normalizedPlate && plateKey(trip.vehicleName) === normalizedPlate) ||
-      trip.vehicleName === name,
+      (normalizedPlate && plateKey(tripVehiclePlate(trip)) === normalizedPlate) ||
+      (!normalizedPlate && name && trip.vehicleName === name),
   );
   return { ...summarizeGroup(plate || name || '-', rows), trips: rows };
 };

@@ -1,6 +1,6 @@
 // TravelLog ana kabuğu: oturum, veri yükleme ve sayfa geçişlerini yönetir.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BarChart3, Building2, CalendarCheck2, CalendarDays, Car, Check, CreditCard, Eye, EyeOff, LayoutDashboard, Lock, Mail, Map, Plus, Route, Settings, Table2 } from 'lucide-react';
+import { BarChart3, Building2, CalendarCheck2, CalendarDays, Car, Check, CreditCard, Eye, EyeOff, LayoutDashboard, Lock, Mail, Map, MapPinned, Plus, Route, Settings, Table2, TramFront } from 'lucide-react';
 import { hasFirebaseConfig } from './config/firebase';
 import { subscribeToAuth, signInWithGoogle, logout } from './services/authService';
 import { createDemoTrips, createTripsBulk, deleteOwnedItem, deleteTrip, listOwnedCollection, listTrips, saveOwnedItem, saveTrip } from './services/tripService';
@@ -15,6 +15,8 @@ import MapPage from './pages/MapPage';
 import CalendarPage from './pages/Calendar';
 import ExpensesPage from './pages/Expenses';
 import PlannerPage from './pages/PlannerPage';
+import TurkeyMapPage from './pages/TurkeyMapPage';
+import IstanbulTransportPage from './pages/IstanbulTransportPage';
 import { normalizeTrips } from './utils/tripNormalizers';
 
 const navItems = [
@@ -28,6 +30,8 @@ const navItems = [
   { id: 'expenses', label: 'Masraflar', icon: CreditCard },
   { id: 'calendar', label: 'Takvim', icon: CalendarDays },
   { id: 'planner', label: 'Planlayıcı', icon: CalendarCheck2 },
+  { id: 'istanbul-transport', label: 'İstanbul Ulaşım', icon: TramFront },
+  { id: 'turkey-map', label: 'Türkiye Haritası', icon: MapPinned },
   { id: 'settings', label: 'Ayarlar', icon: Settings },
 ];
 
@@ -40,6 +44,7 @@ export default function App() {
   const [vehicles, setVehicles] = useState([]);
   const [savedLocations, setSavedLocations] = useState([]);
   const [expenses, setExpenses] = useState([]);
+  const [turkeyMapEntries, setTurkeyMapEntries] = useState([]);
   const [editingTrip, setEditingTrip] = useState(null);
   const [detailTrip, setDetailTrip] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -75,18 +80,20 @@ export default function App() {
     if (showLoading) setLoading(true);
     setLastError('');
     try {
-      const [tripRows, companyRows, vehicleRows, locationRows, expenseRows] = await Promise.all([
+      const [tripRows, companyRows, vehicleRows, locationRows, expenseRows, turkeyMapRows] = await Promise.all([
         listTrips(userId),
         listOwnedCollection('companies', userId),
         listOwnedCollection('vehicles', userId),
         listOwnedCollection('locations', userId),
         listOwnedCollection('expenses', userId),
+        listOwnedCollection('turkeyMap', userId),
       ]);
       setTrips(tripRows);
       setCompanies(companyRows.length ? companyRows : []);
       setVehicles(vehicleRows);
       setSavedLocations(locationRows);
       setExpenses(expenseRows);
+      setTurkeyMapEntries(turkeyMapRows);
     } catch (error) {
       const message = error?.message || 'Veriler yüklenirken beklenmeyen bir hata oluştu.';
       console.error('Firestore error', error);
@@ -97,6 +104,7 @@ export default function App() {
         setVehicles([]);
         setSavedLocations([]);
         setExpenses([]);
+        setTurkeyMapEntries([]);
       }
     } finally {
       if (showLoading) setLoading(false);
@@ -244,6 +252,22 @@ export default function App() {
     }
   };
 
+  const handleSaveTurkeyProvince = async (province) => {
+    try {
+      const saved = await saveOwnedItem('turkeyMap', province, user.uid);
+      setTurkeyMapEntries((current) => {
+        const others = current.filter((item) => item.code !== saved.code && item.id !== saved.id);
+        return [...others, saved];
+      });
+      showToast(`${province.name} güncellendi.`);
+    } catch (error) {
+      const message = error?.message || 'Türkiye haritası kaydedilemedi.';
+      console.error('Firestore error', error);
+      setLastError(message);
+      showToast(message, 'error');
+    }
+  };
+
   const handleImportTrips = async (rows) => {
     try {
       await createTripsBulk(user.uid, rows);
@@ -292,6 +316,7 @@ export default function App() {
         initialTrip={editingTrip}
         companies={companies}
         vehicles={vehicles}
+        trips={normalizedTrips}
         savedLocations={savedLocations}
         onCancel={() => {
           setEditingTrip(null);
@@ -303,13 +328,13 @@ export default function App() {
     vehicles: (
       <SimpleDirectoryPage
         title="Araçlar"
-        description="Araç seyahati maliyetleri için plaka ve araç adlarını yönetin."
+        description="Araç seyahati maliyetleri için plakaları filo adına göre yönetin."
         items={vehicles}
         trips={visibleTrips}
         type="vehicles"
         fields={[
           { key: 'plate', label: 'Plaka' },
-          { key: 'name', label: 'Araç adı' },
+          { key: 'name', label: 'Filo adı' },
           { key: 'brand', label: 'Marka' },
           { key: 'model', label: 'Model' },
           { key: 'fuelType', label: 'Yakıt türü' },
@@ -317,6 +342,7 @@ export default function App() {
         ]}
         onSave={(item) => handleSaveDirectoryItem('vehicles', item)}
         onDelete={(item) => requestDeleteDirectoryItem('vehicles', item)}
+        onDetail={setDetailTrip}
         onNewTrip={() => setActivePage('new-trip')}
         onSeed={handleCreateDemoData}
       />
@@ -378,6 +404,18 @@ export default function App() {
         trips={visibleTrips}
         onNewTrip={() => setActivePage('new-trip')}
         onDetail={setDetailTrip}
+      />
+    ),
+    'istanbul-transport': (
+      <IstanbulTransportPage
+        onSaveRoute={() => showToast('Rota TravelLog seyahatlerine kaydedildi.')}
+      />
+    ),
+    'turkey-map': (
+      <TurkeyMapPage
+        trips={visibleTrips}
+        entries={turkeyMapEntries}
+        onSaveProvince={handleSaveTurkeyProvince}
       />
     ),
     settings: (

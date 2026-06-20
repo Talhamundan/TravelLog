@@ -1,6 +1,7 @@
 // Excel import/export akışı: şablon üretir, xlsx dışa aktarır ve toplu seyahatleri okur.
 import * as XLSX from 'xlsx';
 import { locationCity, locationLabel } from './location';
+import { formatPlate } from './plateFormatter';
 
 const headers = [
   'Başlık',
@@ -23,7 +24,7 @@ const headers = [
   'Bilet Fiyatı',
   'Para Birimi',
   'Plaka',
-  'Araç Adı',
+  'Filo Adı',
   'Yakıt',
   'Yol',
   'Köprü',
@@ -56,7 +57,7 @@ const sampleRows = [
     'Bilet Fiyatı': 0,
     'Para Birimi': 'TRY',
     Plaka: '34 EJC 537',
-    'Araç Adı': 'Skoda Scala',
+    'Filo Adı': 'HNC Filo',
     Yakıt: 2100,
     Yol: 320,
     Köprü: 120,
@@ -108,8 +109,8 @@ export const exportTripsToXlsx = (trips, filename = 'travellog-seyahatler.xlsx')
     Km: trip.distanceKm || 0,
     'Bilet Fiyatı': trip.ticketPrice || 0,
     'Para Birimi': trip.currency || 'TRY',
-    Plaka: trip.plate || '',
-    'Araç Adı': trip.vehicleName || '',
+    Plaka: trip.vehiclePlate || trip.plate || '',
+    'Filo Adı': trip.vehicleName || '',
     Yakıt: trip.fuelCost || 0,
     Yol: trip.roadCost || 0,
     Köprü: trip.bridgeCost || 0,
@@ -144,8 +145,9 @@ export const parseTripWorkbook = async (file) => {
       distanceKm: toNumber(row.Km),
       ticketPrice: toNumber(row['Bilet Fiyatı']),
       currency: row['Para Birimi'] || 'TRY',
-      plate: row.Plaka || '',
-      vehicleName: row['Araç Adı'] || row.Plaka || '',
+      plate: formatPlate(row.Plaka || ''),
+      vehiclePlate: formatPlate(row.Plaka || ''),
+      vehicleName: row['Filo Adı'] || row['Araç Adı'] || '',
       fuelCost: toNumber(row.Yakıt),
       roadCost: toNumber(row.Yol),
       bridgeCost: toNumber(row.Köprü),

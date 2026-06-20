@@ -2,7 +2,7 @@
 import { Download, Eye, FileSpreadsheet, Filter, Pencil, RotateCcw, Search, SlidersHorizontal, Trash2, Upload, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import EmptyState from '../components/EmptyState';
-import TravelMap from '../components/TravelMap';
+import TravelMap, { defaultDashboardMapFilters, matchesTravelMapFilters } from '../components/TravelMap';
 import CustomSelect from '../components/ui/CustomSelect';
 import { exportTripsToCsv } from '../utils/exporters';
 import { downloadTripImportTemplate, exportTripsToXlsx, parseTripWorkbook } from '../utils/excelTransfer';
@@ -35,6 +35,7 @@ export default function TripsPage({ trips, onEdit, onDelete, onDetail, onNewTrip
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [importState, setImportState] = useState({ open: false, loading: false, message: '' });
   const [selectedMapTripId, setSelectedMapTripId] = useState('');
+  const [mapFilters, setMapFilters] = useState(defaultDashboardMapFilters);
   const mapPanelRef = useRef(null);
 
   const transportTypes = useMemo(() => [...new Set(trips.map((trip) => normalizeTransportType(trip.transportType)).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr')), [trips]);
@@ -55,7 +56,7 @@ export default function TripsPage({ trips, onEdit, onDelete, onDetail, onNewTrip
     }));
   }, [companies, months, transportTypes, years]);
 
-  const filteredTrips = useMemo(() => {
+  const baseFilteredTrips = useMemo(() => {
     const term = filters.search.toLocaleLowerCase('tr-TR');
     return trips
       .filter((trip) => {
@@ -96,13 +97,17 @@ export default function TripsPage({ trips, onEdit, onDelete, onDetail, onNewTrip
       })
       .sort((a, b) => String(b.date).localeCompare(String(a.date)));
   }, [filters, trips]);
+  const filteredTrips = useMemo(
+    () => baseFilteredTrips.filter((trip) => matchesTravelMapFilters(trip, mapFilters)),
+    [baseFilteredTrips, mapFilters],
+  );
 
   const filteredKm = sumBy(filteredTrips, 'distanceKm');
   const filteredCost = sumBy(filteredTrips, 'totalCost');
   const activeFilterCount = Object.values(filters).filter(Boolean).length;
   const selectedMapTrip = filteredTrips.find((trip) => trip.id === selectedMapTripId) || null;
   const selectedRouteUsage = selectedMapTrip ? filteredTrips.filter((trip) => getTripRouteTitle(trip) === getTripRouteTitle(selectedMapTrip)).length : 0;
-  const mapTrips = selectedMapTrip ? [selectedMapTrip] : filteredTrips;
+  const mapTrips = selectedMapTrip ? [selectedMapTrip] : baseFilteredTrips;
   const resetFilters = () => setFilters(initialFilters);
   const updateFilter = (key, value) => setFilters((current) => ({ ...current, [key]: value }));
   const selectTripOnMap = (trip) => {
@@ -283,7 +288,17 @@ export default function TripsPage({ trips, onEdit, onDelete, onDetail, onNewTrip
               </button>
             </div>
           )}
-          <TravelMap trips={mapTrips} dashboard theme="dark" onRouteSelect={onDetail} selectedTripId={selectedMapTripId} onRouteFocus={(trip) => setSelectedMapTripId(trip?.id || '')} preserveMapOnEmpty />
+          <TravelMap
+            trips={mapTrips}
+            dashboard
+            theme="dark"
+            onRouteSelect={onDetail}
+            filters={mapFilters}
+            onFiltersChange={setMapFilters}
+            selectedTripId={selectedMapTripId}
+            onRouteFocus={(trip) => setSelectedMapTripId(trip?.id || '')}
+            preserveMapOnEmpty
+          />
         </section>
       )}
 

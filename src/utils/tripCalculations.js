@@ -1,6 +1,7 @@
 // Seyahat formu hesaplamaları ve geriye uyumlu analitik exportları.
 import { getStopCoords } from './cityCoordinates';
 import { resolveLocationCoords } from './location';
+import { formatPlate } from './plateFormatter';
 import { normalizeTransportType } from '../constants/transport';
 export { createChartData, createStats, toNumber } from './analytics';
 
@@ -31,6 +32,7 @@ export const normalizeTripPayload = (trip, userId) => {
   const toCoords = resolveLocationCoords(trip.toLocation || trip.to || trip.toText, trip.toCoords);
   const totalCost = calculateTotalCost(trip);
   const distanceKm = toNumeric(trip.distanceKm);
+  const plate = formatPlate(trip.vehiclePlate || trip.plate || '');
 
   return {
     ...trip,
@@ -41,8 +43,9 @@ export const normalizeTripPayload = (trip, userId) => {
     transportType: normalizeTransportType(trip.transportType),
     company: trip.company || '',
     vehicleId: trip.vehicleId || '',
-    vehicleName: trip.vehicleName || trip.plate || '',
-    plate: trip.plate || '',
+    vehicleName: trip.vehicleName || plate,
+    vehiclePlate: plate,
+    plate,
     fuelType: trip.fuelType || '',
     seatNo: trip.seatNo || '',
     ticketNo: trip.ticketNo || '',

@@ -20,6 +20,7 @@ const collectionNames = {
   vehicles: 'vehicles',
   locations: 'locations',
   expenses: 'expenses',
+  turkeyMap: 'turkeyMap',
   settings: 'settings',
 };
 
@@ -544,7 +545,7 @@ export const listOwnedCollection = async (collectionName, userId) => {
 
 export const saveOwnedItem = async (collectionName, item, userId) => {
   if (!collectionNames[collectionName] || !userId) throw new Error('Geçersiz koleksiyon veya kullanıcı.');
-  const payload = { ...item, userId };
+  const payload = stripUndefined({ ...item, userId });
   if (!hasFirebaseConfig) {
     return item.id ? localStore.update(collectionName, item.id, payload, userId) : localStore.create(collectionName, payload);
   }
@@ -559,6 +560,10 @@ export const saveOwnedItem = async (collectionName, item, userId) => {
   });
   return { ...payload, id: ref.id };
 };
+
+function stripUndefined(value) {
+  return Object.fromEntries(Object.entries(value).filter(([, itemValue]) => itemValue !== undefined));
+}
 
 export const deleteOwnedItem = async (collectionName, id, userId) => {
   if (!collectionNames[collectionName] || !id || !userId) return;
