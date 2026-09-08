@@ -20,6 +20,10 @@ export default function LocationAutocomplete({ label, value, location, savedLoca
       .slice(0, 6);
     return cityLocation ? [cityLocation, ...matches.filter((item) => item.name !== cityLocation.name)].slice(0, 6) : matches;
   }, [query, savedLocations]);
+  const selectLocation = (item) => {
+    onChange(item.name, item);
+    setFocused(false);
+  };
 
   return (
     <label className="field location-autocomplete">
@@ -39,10 +43,11 @@ export default function LocationAutocomplete({ label, value, location, savedLoca
             <button
               key={item.name}
               type="button"
-              onClick={() => {
-                onChange(item.name, item);
-                setFocused(false);
+              onPointerDown={(event) => {
+                event.preventDefault();
+                selectLocation(item);
               }}
+              onClick={() => selectLocation(item)}
             >
               <MapPin size={15} />
               <span>{item.name}</span>

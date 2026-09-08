@@ -5,7 +5,7 @@ import { DEFAULT_COMPANIES } from '../constants/travel';
 const seed = {
   trips: demoTrips,
   companies: DEFAULT_COMPANIES.map((name, index) => ({ id: `company-${index}`, userId: 'demo-user', name })),
-  vehicles: [{ id: 'car-1', userId: 'demo-user', name: '34 TL 2026', plate: '34 TL 2026', notes: 'Kişisel araç' }],
+  vehicles: [{ id: 'car-1', userId: 'demo-user', name: '34 TL 2026', plate: '34 TL 2026', fuelType: 'Benzin', fuelConsumptionPer100Km: 7.2, fuelUnitPrice: 45, notes: 'Kişisel araç' }],
   expenses: [],
   settings: [],
 };

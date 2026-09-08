@@ -2,11 +2,13 @@
 import { Bell, CalendarDays, Expand, Menu, Moon, PlaneTakeoff, Search, Sparkles, Sun, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { createStats } from '../utils/analytics';
-import { formatCurrency, formatDate, formatKm } from '../utils/formatters';
+import { formatCurrency, formatDate, formatKm, monthName } from '../utils/formatters';
 import { getTripRouteTitle } from '../utils/routeDisplay';
 import { buildGlobalSearchResults } from '../utils/globalSearch';
 import { tripProviderLabel } from '../utils/tripDisplay';
 import TripDetail from './TripDetail';
+
+const isMobileSidebarViewport = () => window.matchMedia?.('(max-width: 860px)').matches;
 
 export default function AppShell({
   navItems,
@@ -14,9 +16,12 @@ export default function AppShell({
   onNavigate,
   user,
   trips = [],
+  allTrips = trips,
   availableYears = [],
   yearFilter = '',
   onYearFilterChange,
+  monthFilter = '',
+  onMonthFilterChange,
   vehicles = [],
   companies = [],
   savedLocations = [],
@@ -33,7 +38,10 @@ export default function AppShell({
   onCancelConfirm,
   children,
 }) {
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    if (isMobileSidebarViewport()) return false;
+    return localStorage.getItem('travellog:sidebarOpen') !== 'false';
+  });
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationFilter, setNotificationFilter] = useState('Tümü');
   const [readNotifications, setReadNotifications] = useState(() => {
@@ -54,7 +62,7 @@ export default function AppShell({
   });
   const [theme, setTheme] = useState(() => localStorage.getItem('travellog:theme') || 'dark');
   const [fullscreen, setFullscreen] = useState(Boolean(document.fullscreenElement));
-  const sidebarStats = useMemo(() => createStats(trips), [trips]);
+  const sidebarStats = useMemo(() => createStats(allTrips), [allTrips]);
   const searchGroups = useMemo(
     () => buildGlobalSearchResults({ query: globalQuery, trips, vehicles, companies, locations: savedLocations }),
     [companies, globalQuery, savedLocations, trips, vehicles],
@@ -114,10 +122,23 @@ export default function AppShell({
   }, [trips, vehicles, companies]);
   const visibleNotifications = notifications.filter((item) => notificationFilter === 'Tümü' || item.category === notificationFilter);
   const unreadCount = notifications.filter((item) => !readNotifications.includes(item.id)).length;
+  const monthOptions = useMemo(
+    () => Array.from({ length: 12 }, (_, index) => ({ value: String(index + 1), label: monthName(index) })),
+    [],
+  );
 
   useEffect(() => {
     localStorage.setItem('travellog:readNotifications', JSON.stringify(readNotifications));
   }, [readNotifications]);
+
+  useEffect(() => {
+    if (isMobileSidebarViewport()) return;
+    localStorage.setItem('travellog:sidebarOpen', sidebarOpen ? 'true' : 'false');
+  }, [sidebarOpen]);
+
+  useEffect(() => {
+    if (isMobileSidebarViewport()) setSidebarOpen(false);
+  }, [activePage]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -145,7 +166,7 @@ export default function AppShell({
 
   const navigate = (pageId) => {
     onNavigate(pageId);
-    setMobileOpen(false);
+    if (isMobileSidebarViewport()) setSidebarOpen(false);
   };
 
   const selectSearchResult = (result) => {
@@ -168,8 +189,8 @@ export default function AppShell({
   };
 
   return (
-    <div className="app-layout">
-      <aside className={`sidebar ${mobileOpen ? 'open' : ''}`}>
+    <div className={`app-layout ${sidebarOpen ? 'sidebar-open' : 'sidebar-collapsed'}`}>
+      <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="brand">
           <span className="brand-mark travel-logo" aria-hidden="true">
             <PlaneTakeoff size={28} />
@@ -198,7 +219,7 @@ export default function AppShell({
           <span>Toplam masraf</span>
           <b>{formatCurrency(sidebarStats.yearCost)}</b>
           <span>Seyahat sayısı</span>
-          <b>{sidebarStats.totalTrips}</b>
+          <b>{sidebarStats.yearTrips}</b>
           <button type="button" onClick={() => navigate('reports')}>
             Raporu Görüntüle <span>→</span>
           </button>
@@ -217,8 +238,8 @@ export default function AppShell({
 
       <div className="main-area">
         <header className="topbar">
-          <button className="icon-button mobile-only" title="Menü" onClick={() => setMobileOpen((value) => !value)}>
-            {mobileOpen ? <X size={20} /> : <Menu size={20} />}
+          <button className="icon-button mobile-only" title={sidebarOpen ? 'Menüyü kapat' : 'Menüyü aç'} onClick={() => setSidebarOpen((value) => !value)}>
+            {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
           <label className="topbar-search">
             <Search size={17} />
@@ -275,6 +296,15 @@ export default function AppShell({
                 </select>
               </label>
             )}
+            <label className="topbar-year-filter">
+              <CalendarDays size={16} />
+              <select value={monthFilter} onChange={(event) => onMonthFilterChange?.(event.target.value)}>
+                <option value="">Tüm aylar</option>
+                {monthOptions.map((month) => (
+                  <option key={month.value} value={month.value}>{month.label}</option>
+                ))}
+              </select>
+            </label>
             <div className="topbar-popover-wrap">
               <button className="icon-button has-badge" title="Bildirimler" onClick={() => setNotificationsOpen((value) => !value)}>
                 <Bell size={18} />

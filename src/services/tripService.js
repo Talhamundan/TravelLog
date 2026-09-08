@@ -13,6 +13,7 @@ import {
 import { db, hasFirebaseConfig } from '../config/firebase';
 import { localStore } from './localStore';
 import { normalizeTripPayload } from '../utils/tripCalculations';
+import { sortTripsByNewestDateTime } from '../utils/tripSorting';
 
 const collectionNames = {
   trips: 'trips',
@@ -427,8 +428,6 @@ const demoSeedTrips = [
   },
 ];
 
-const sortTrips = (trips) => trips.sort((a, b) => String(b.date).localeCompare(String(a.date)));
-
 const generatedDemoTrips = Array.from({ length: 16 }, (_, index) => {
   const routes = [
     ['İstanbul', 'Kocaeli', 'Araç', 'Kişisel Araç', 110, 620],
@@ -470,13 +469,13 @@ export const getTrips = async (userId) => {
   if (!userId) return [];
   try {
     if (!hasFirebaseConfig) {
-      const rows = sortTrips(localStore.list('trips', userId));
+      const rows = sortTripsByNewestDateTime(localStore.list('trips', userId));
       console.info('Trips loaded count', rows.length);
       return rows;
     }
     const q = query(collection(db, 'trips'), where('userId', '==', userId));
     const snapshot = await getDocs(q);
-    const rows = sortTrips(snapshot.docs.map((item) => ({ id: item.id, ...item.data() })));
+    const rows = sortTripsByNewestDateTime(snapshot.docs.map((item) => ({ id: item.id, ...item.data() })));
     console.info('Trips loaded count', rows.length);
     return rows;
   } catch (error) {

@@ -47,6 +47,8 @@ export const normalizeTripPayload = (trip, userId) => {
     vehiclePlate: plate,
     plate,
     fuelType: trip.fuelType || '',
+    fuelConsumptionPer100Km: toNumeric(trip.fuelConsumptionPer100Km),
+    fuelUnitPrice: toNumeric(trip.fuelUnitPrice),
     seatNo: trip.seatNo || '',
     ticketNo: trip.ticketNo || '',
     platformNo: trip.platformNo || '',
@@ -60,7 +62,7 @@ export const normalizeTripPayload = (trip, userId) => {
     cabinNo: trip.cabinNo || '',
     ferryLine: trip.ferryLine || '',
     driverName: trip.driverName || '',
-    date: trip.date || new Date().toISOString().slice(0, 10),
+    date: trip.date || todayInputValue(),
     departureTime: trip.departureTime || '',
     arrivalTime: trip.arrivalTime || '',
     stops,
@@ -70,6 +72,8 @@ export const normalizeTripPayload = (trip, userId) => {
     distanceKm,
     ticketPrice: toNumeric(trip.ticketPrice),
     fuelCost: toNumeric(trip.fuelCost),
+    fuelCostAutoCalculated: Boolean(trip.fuelCostAutoCalculated),
+    fuelCostManuallyEdited: Boolean(trip.fuelCostManuallyEdited),
     roadCost: toNumeric(trip.roadCost),
     bridgeCost: toNumeric(trip.bridgeCost),
     parkingCost: toNumeric(trip.parkingCost),
@@ -96,3 +100,11 @@ export const normalizeTripPayload = (trip, userId) => {
       })),
   };
 };
+
+function todayInputValue() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}

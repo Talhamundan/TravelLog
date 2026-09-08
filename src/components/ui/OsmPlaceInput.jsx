@@ -90,7 +90,15 @@ export default function OsmPlaceInput({ label, value, selectedPlace, frequentLoc
       {showSuggestions && (
         <div className="location-suggestions osm-suggestions" onMouseDown={(event) => event.preventDefault()}>
           {suggestions.map((item) => (
-            <button key={`${item.provider || 'local'}-${item.placeId || item.name}-${item.lat}-${item.lng}`} type="button" onClick={() => selectPlace(item)}>
+            <button
+              key={`${item.provider || 'local'}-${item.placeId || item.name}-${item.lat}-${item.lng}`}
+              type="button"
+              onPointerDown={(event) => {
+                event.preventDefault();
+                selectPlace(item);
+              }}
+              onClick={() => selectPlace(item)}
+            >
               <MapPin size={15} />
               <span>{item.name}</span>
               <small>{item.formattedAddress || [item.district, item.city, item.type].filter(Boolean).join(' · ') || item.provider}</small>

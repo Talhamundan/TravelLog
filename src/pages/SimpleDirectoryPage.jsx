@@ -8,6 +8,7 @@ import { formatDate } from '../utils/formatters';
 import { formatPlate } from '../utils/plateFormatter';
 import CustomSelect from '../components/ui/CustomSelect';
 import { getTripRouteTitle } from '../utils/routeDisplay';
+import { sortTripsByNewestDateTime } from '../utils/tripSorting';
 
 const fuelTypes = ['Benzin', 'Dizel', 'LPG', 'Hibrit', 'Elektrik', 'Diğer'];
 const companyCategories = ['Otobüs', 'Uçak', 'Tren', 'Araç kiralama', 'Diğer'];
@@ -29,6 +30,10 @@ export default function SimpleDirectoryPage({ title, description, items, fields,
     return names.filter((name) => name.toLocaleLowerCase('tr-TR').includes(query)).slice(0, 8);
   }, [form.name, items, type]);
   const showFleetSuggestions = type === 'vehicles' && focusedFleetField && fleetSuggestions.length > 0;
+  const selectFleetName = (fieldKey, name) => {
+    setForm((current) => ({ ...current, [fieldKey]: name }));
+    setFocusedFleetField(false);
+  };
 
   const submit = async (event) => {
     event.preventDefault();
@@ -39,6 +44,8 @@ export default function SimpleDirectoryPage({ title, description, items, fields,
             ...form,
             plate: formatPlate(form.plate || ''),
             name: String(form.name || '').trim(),
+            fuelConsumptionPer100Km: toOptionalNumber(form.fuelConsumptionPer100Km),
+            fuelUnitPrice: toOptionalNumber(form.fuelUnitPrice),
           }
         : form;
     await onSave(editingId ? { ...payload, id: editingId } : payload);
@@ -91,10 +98,11 @@ export default function SimpleDirectoryPage({ title, description, items, fields,
                       <button
                         key={name}
                         type="button"
-                        onClick={() => {
-                          setForm({ ...form, [field.key]: name });
-                          setFocusedFleetField(false);
+                        onPointerDown={(event) => {
+                          event.preventDefault();
+                          selectFleetName(field.key, name);
                         }}
+                        onClick={() => selectFleetName(field.key, name)}
                       >
                         <span>{name}</span>
                       </button>
@@ -104,6 +112,9 @@ export default function SimpleDirectoryPage({ title, description, items, fields,
               </div>
             ) : (
               <input
+                type={field.type || 'text'}
+                min={field.type === 'number' ? '0' : undefined}
+                step={field.step}
                 value={form[field.key] || ''}
                 onChange={(event) =>
                   setForm({ ...form, [field.key]: field.key === 'plate' ? formatPlate(event.target.value) : event.target.value })
@@ -170,7 +181,7 @@ export default function SimpleDirectoryPage({ title, description, items, fields,
                           </span>
                         </div>
                         <strong>{plate}</strong>
-                        <span>{[item.brand, item.model, item.fuelType].filter(Boolean).join(' · ') || 'Araç bilgisi eksik'}</span>
+                        <span>{[item.brand, item.model, item.fuelType, vehicleFuelAverageLabel(item)].filter(Boolean).join(' · ') || 'Araç bilgisi eksik'}</span>
                         <div className="vehicle-card-metrics">
                           <small>{stats.count} seyahat</small>
                           <small>{formatKm(stats.km)}</small>
@@ -189,7 +200,7 @@ export default function SimpleDirectoryPage({ title, description, items, fields,
                 <div>
                   <span>Seçili plaka</span>
                   <h2>{formatPlate(selectedItem.plate || '') || '-'}</h2>
-                  <p>{[vehicleFleetName(selectedItem), selectedItem.brand, selectedItem.model, selectedItem.fuelType].filter(Boolean).join(' · ')}</p>
+                  <p>{[vehicleFleetName(selectedItem), selectedItem.brand, selectedItem.model, selectedItem.fuelType, vehicleFuelAverageLabel(selectedItem)].filter(Boolean).join(' · ')}</p>
                 </div>
                 <strong>{formatCurrency(selectedStats.averageCostPerKm)} / km</strong>
               </div>
@@ -204,11 +215,11 @@ export default function SimpleDirectoryPage({ title, description, items, fields,
               <div className="vehicle-trip-list">
                 <h3>Bu plakaya bağlı seyahatler</h3>
                 {selectedStats.trips.length ? (
-                  selectedStats.trips.slice(0, 8).map((trip) => (
+                  sortTripsByNewestDateTime(selectedStats.trips).slice(0, 8).map((trip) => (
                     <button type="button" className="vehicle-trip-item" key={trip.id} onClick={() => onDetail?.(trip)}>
                       <div>
                         <strong>{getTripRouteTitle(trip)}</strong>
-                        <span>{formatDate(trip.date)} · {trip.transportType}</span>
+                        <span>{formatDate(trip.date)} · {trip.departureTime || 'Saat yok'} · {trip.transportType}</span>
                       </div>
                       <b>{formatKm(trip.distanceKm)}</b>
                       <b>{formatCurrency(trip.totalCost, trip.currency)}</b>
@@ -296,6 +307,20 @@ export default function SimpleDirectoryPage({ title, description, items, fields,
 
 function vehicleFleetName(vehicle) {
   return String(vehicle?.name || '').trim() || 'Filo adı yok';
+}
+
+function vehicleFuelAverageLabel(vehicle) {
+  const consumption = Number(vehicle?.fuelConsumptionPer100Km || 0);
+  const unitPrice = Number(vehicle?.fuelUnitPrice || 0);
+  if (!consumption && !unitPrice) return '';
+  if (consumption && unitPrice) return `${consumption} / 100 km · ${formatCurrency(unitPrice)}`;
+  if (consumption) return `${consumption} / 100 km`;
+  return `${formatCurrency(unitPrice)} birim`;
+}
+
+function toOptionalNumber(value) {
+  const number = Number.parseFloat(value);
+  return Number.isFinite(number) ? number : '';
 }
 
 function groupVehiclesByFleet(items, trips) {

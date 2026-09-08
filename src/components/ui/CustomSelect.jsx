@@ -12,6 +12,11 @@ export default function CustomSelect({ value, options, placeholder = 'Seçin', o
     () => normalizedOptions.filter((option) => option.label.toLocaleLowerCase('tr-TR').includes(query.toLocaleLowerCase('tr-TR'))),
     [normalizedOptions, query],
   );
+  const selectOption = (nextValue) => {
+    onChange(nextValue);
+    setOpen(false);
+    setQuery('');
+  };
 
   useEffect(() => {
     const close = (event) => {
@@ -39,11 +44,11 @@ export default function CustomSelect({ value, options, placeholder = 'Seçin', o
                 type="button"
                 key={option.value}
                 className={option.value === value ? 'selected' : ''}
-                onClick={() => {
-                  onChange(option.value);
-                  setOpen(false);
-                  setQuery('');
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  selectOption(option.value);
                 }}
+                onClick={() => selectOption(option.value)}
               >
                 {option.label}
               </button>

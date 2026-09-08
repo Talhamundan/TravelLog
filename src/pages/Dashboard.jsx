@@ -1,23 +1,30 @@
 // Ana ekran metrikleri ve hızlı grafik özetlerini üretir.
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { Banknote, BriefcaseBusiness, Gauge, Plus, Route, WalletCards } from 'lucide-react';
-import Charts from '../components/Charts';
+import DashboardCharts from '../components/DashboardCharts';
 import EmptyState from '../components/EmptyState';
 import StatCard from '../components/StatCard';
-import TravelMap, { defaultDashboardMapFilters, matchesTravelMapFilters } from '../components/TravelMap';
-import { formatCurrency, formatDate, formatKm, minutesToDuration } from '../utils/formatters';
+import { defaultDashboardMapFilters, matchesTravelMapFilters } from '../utils/travelMapFilters';
+import { formatCurrency, formatDate, formatKm, minutesToDuration, monthName } from '../utils/formatters';
 import { createStats } from '../utils/analytics';
 import { tripProviderLabel } from '../utils/tripDisplay';
+import { compareTripsByNewestDateTime } from '../utils/tripSorting';
 import { getTransportColor, normalizeTransportType } from '../constants/transport';
 import { getTripRouteSubtitle, getTripRouteTitle } from '../utils/routeDisplay';
 
-export default function Dashboard({ trips, onOpenTrips, onNewTrip, onSeed }) {
+const TravelMap = lazy(() => import('../components/TravelMap'));
+
+export default function Dashboard({ trips, allTrips = trips, yearFilter = '', monthFilter = '', onOpenTrips, onNewTrip, onSeed }) {
   const [mapFilters, setMapFilters] = useState(defaultDashboardMapFilters);
   const [selectedTripId, setSelectedTripId] = useState('');
   const dashboardTransportTypes = useMemo(() => [...new Set(trips.map((trip) => normalizeTransportType(trip.transportType)).filter(Boolean))], [trips]);
   const filteredTrips = useMemo(() => trips.filter((trip) => matchesTravelMapFilters(trip, mapFilters)), [mapFilters, trips]);
   const stats = createStats(filteredTrips);
-  const recentTrips = [...filteredTrips].sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 5);
+  const comparisonRange = useMemo(() => previousGlobalDateRange(yearFilter, monthFilter), [monthFilter, yearFilter]);
+  const comparisonStats = useMemo(() => createStats(getComparisonTrips(allTrips, mapFilters, comparisonRange)), [allTrips, comparisonRange, mapFilters]);
+  const comparisonLabel = dashboardComparisonLabel(yearFilter, monthFilter);
+  const periodLabel = dashboardPeriodLabel(yearFilter, monthFilter);
+  const recentTrips = [...filteredTrips].sort(compareTripsByNewestDateTime).slice(0, 4);
   const selectedTrip = filteredTrips.find((trip) => trip.id === selectedTripId) || null;
   const selectedRouteUsage = selectedTrip ? filteredTrips.filter((trip) => getTripRouteTitle(trip) === getTripRouteTitle(selectedTrip)).length : 0;
 
@@ -32,11 +39,11 @@ export default function Dashboard({ trips, onOpenTrips, onNewTrip, onSeed }) {
     <div className="page-stack">
       {!trips.length && <EmptyState onPrimary={onNewTrip} onSeed={onSeed} />}
       <div className="stat-grid hero-stat-grid">
-        <StatCard label="Toplam Seyahat" value={stats.totalTrips} icon={BriefcaseBusiness} trend="Geçen yıla göre ↑ 24%" trendType="up" tone="blue" />
-        <StatCard label="Bu Yıl Toplam Km" value={formatKm(stats.yearKm)} icon={Route} trend="Geçen yıla göre ↑ 18%" trendType="up" tone="indigo" />
-        <StatCard label="Bu Yıl Toplam Masraf" value={formatCurrency(stats.yearCost)} icon={WalletCards} trend="Geçen yıla göre ↑ 27%" trendType="up" tone="pink" />
-        <StatCard label="Bu Ay Km" value={formatKm(stats.monthKm)} icon={Gauge} trend="Geçen aya göre ↓ 8%" trendType="down" tone="cyan" />
-        <StatCard label="Bu Ay Masraf" value={formatCurrency(stats.monthCost)} icon={Banknote} trend="Geçen aya göre ↑ 12%" trendType="up" tone="amber" />
+        <StatCard label="Seyahat" value={stats.totalTrips} icon={BriefcaseBusiness} {...trendProps(stats.totalTrips, comparisonStats.totalTrips, comparisonLabel)} tone="blue" />
+        <StatCard label="Toplam Km" value={formatKm(stats.totalKm)} icon={Route} {...trendProps(stats.totalKm, comparisonStats.totalKm, comparisonLabel)} tone="indigo" />
+        <StatCard label="Toplam Masraf" value={formatCurrency(stats.totalCost)} icon={WalletCards} {...trendProps(stats.totalCost, comparisonStats.totalCost, comparisonLabel)} tone="pink" />
+        <StatCard label="Ortalama Km" value={formatKm(stats.averageTripKm)} icon={Gauge} {...trendProps(stats.averageTripKm, comparisonStats.averageTripKm, comparisonLabel, `Seyahat başına · ${periodLabel}`)} tone="cyan" />
+        <StatCard label="Ortalama Masraf" value={formatCurrency(averageTripCost(stats))} icon={Banknote} {...trendProps(averageTripCost(stats), averageTripCost(comparisonStats), comparisonLabel, `Seyahat başına · ${periodLabel}`)} tone="amber" />
       </div>
       {trips.length > 0 && (
         <>
@@ -52,17 +59,19 @@ export default function Dashboard({ trips, onOpenTrips, onNewTrip, onSeed }) {
                 </button>
               </div>
             )}
-            <TravelMap
-              trips={trips}
-              dashboard
-              filters={mapFilters}
-              onFiltersChange={setMapFilters}
-              selectedTripId={selectedTripId}
-              onRouteFocus={(trip) => setSelectedTripId(trip?.id || '')}
-            />
+            <Suspense fallback={<DashboardMapFallback />}>
+              <TravelMap
+                trips={trips}
+                dashboard
+                filters={mapFilters}
+                onFiltersChange={setMapFilters}
+                selectedTripId={selectedTripId}
+                onRouteFocus={(trip) => setSelectedTripId(trip?.id || '')}
+              />
+            </Suspense>
           </section>
           <div className="dashboard-chart-strip">
-            <Charts trips={filteredTrips} compact />
+            <DashboardCharts trips={filteredTrips} />
           </div>
           <div className="dashboard-grid">
             <section className="panel pro-panel recent-table-panel">
@@ -95,7 +104,10 @@ export default function Dashboard({ trips, onOpenTrips, onNewTrip, onSeed }) {
                       }
                     }}
                   >
-                    <time>{formatDate(trip.date)}</time>
+                    <time>
+                      {formatDate(trip.date)}
+                      <small>{trip.departureTime || 'Saat yok'}</small>
+                    </time>
                     <div>
                       <strong>{getTripRouteTitle(trip)}</strong>
                       {getTripRouteSubtitle(trip) || trip.routeNote || trip.notes ? <span>{getTripRouteSubtitle(trip) || trip.routeNote || trip.notes}</span> : null}
@@ -124,6 +136,77 @@ export default function Dashboard({ trips, onOpenTrips, onNewTrip, onSeed }) {
       )}
     </div>
   );
+}
+
+function DashboardMapFallback() {
+  return (
+    <div className="map-shell map-shell-dark dashboard-map-shell">
+      <div className="dashboard-map-controls skeleton-line wide" />
+      <div className="travel-map-empty dashboard-map">
+        <strong>Harita hazırlanıyor...</strong>
+        <span>Rotalar birkaç saniye içinde yüklenecek.</span>
+      </div>
+    </div>
+  );
+}
+
+function dashboardPeriodLabel(yearFilter, monthFilter) {
+  if (yearFilter && monthFilter) return `${monthName(Number(monthFilter) - 1)} ${yearFilter}`;
+  if (yearFilter) return `${yearFilter}`;
+  if (monthFilter) return `${monthName(Number(monthFilter) - 1)} · Tüm yıllar`;
+  return 'Tüm Zamanlarda';
+}
+
+function dashboardComparisonLabel(yearFilter, monthFilter) {
+  if (yearFilter && monthFilter) return 'Geçen aya göre';
+  if (yearFilter) return 'Geçen yıla göre';
+  return '';
+}
+
+function trendProps(current, previous, label, fallback) {
+  if (!label) return { trend: fallback || 'Seçili dönem', trendType: 'neutral' };
+  const currentValue = Number(current) || 0;
+  const previousValue = Number(previous) || 0;
+  if (!previousValue && !currentValue) return { trend: `${label} değişim yok`, trendType: 'neutral' };
+  if (!previousValue) return { trend: `${label} yeni`, trendType: 'up' };
+
+  const change = ((currentValue - previousValue) / previousValue) * 100;
+  if (Math.abs(change) < 0.5) return { trend: `${label} değişim yok`, trendType: 'neutral' };
+  const direction = change > 0 ? '↑' : '↓';
+  return {
+    trend: `${label} ${direction} %${Math.abs(Math.round(change))}`,
+    trendType: change > 0 ? 'up' : 'down',
+  };
+}
+
+function averageTripCost(stats) {
+  return stats.totalTrips ? stats.totalCost / stats.totalTrips : 0;
+}
+
+function getComparisonTrips(trips, filters, comparisonRange) {
+  if (!comparisonRange) return [];
+  return trips.filter((trip) => matchesTravelMapFilters(trip, filters) && isTripInRange(trip, comparisonRange));
+}
+
+function previousGlobalDateRange(yearFilter, monthFilter) {
+  if (!yearFilter) return null;
+  const year = Number(yearFilter);
+  if (!Number.isFinite(year)) return null;
+  if (monthFilter) {
+    const month = Number(monthFilter) - 1;
+    if (!Number.isFinite(month) || month < 0 || month > 11) return null;
+    const start = new Date(year, month - 1, 1);
+    const end = new Date(year, month, 0, 23, 59, 59, 999);
+    return { start, end };
+  }
+  const start = new Date(year - 1, 0, 1);
+  const end = new Date(year - 1, 11, 31, 23, 59, 59, 999);
+  return { start, end };
+}
+
+function isTripInRange(trip, range) {
+  const date = new Date(trip.date);
+  return !Number.isNaN(date.getTime()) && date >= range.start && date <= range.end;
 }
 
 function MiniCalendar({ trips }) {

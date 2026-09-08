@@ -298,6 +298,12 @@ function PlaceSearchField({ label, value, selectedPlace, placeholder, onValueCha
             <button
               type="button"
               key={place.placeId}
+              onPointerDown={(event) => {
+                event.preventDefault();
+                onPlaceSelect(place);
+                setOpen(false);
+                setSuggestions([]);
+              }}
               onClick={() => {
                 onPlaceSelect(place);
                 setOpen(false);

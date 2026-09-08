@@ -61,6 +61,7 @@ export const createStats = (trips, now = new Date()) => {
 
   return {
     totalTrips: trips.length,
+    yearTrips: thisYearTrips.length,
     yearKm: sumBy(thisYearTrips, 'distanceKm'),
     yearCost: sumBy(thisYearTrips, 'totalCost'),
     monthKm: sumBy(thisMonthTrips, 'distanceKm'),

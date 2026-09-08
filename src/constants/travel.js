@@ -25,6 +25,8 @@ export const EMPTY_TRIP = {
   vehicleName: '',
   plate: '',
   fuelType: '',
+  fuelConsumptionPer100Km: '',
+  fuelUnitPrice: '',
   seatNo: '',
   ticketNo: '',
   platformNo: '',

@@ -17,16 +17,14 @@ export const subscribeToAuth = (callback) => {
     callback(demoUser);
     return () => {};
   }
-  return onAuthStateChanged(auth, async (user) => {
-    if (user) {
-      try {
-        await ensureUserProfile(user);
-      } catch (error) {
-        console.error('Firestore error', error);
-      }
-    }
+  return onAuthStateChanged(auth, (user) => {
     console.info('Auth user', user ? { uid: user.uid, email: user.email, displayName: user.displayName } : null);
     callback(user);
+    if (user) {
+      ensureUserProfile(user).catch((error) => {
+        console.error('Firestore error', error);
+      });
+    }
   });
 };
 

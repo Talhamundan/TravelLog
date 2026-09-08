@@ -10,6 +10,7 @@ import { formatCurrency, formatDate, formatKm, isValidDisplayDate, minutesToDura
 import { sumBy, toNumber } from '../utils/analytics';
 import { locationLabel } from '../utils/location';
 import { tripProviderLabel } from '../utils/tripDisplay';
+import { compareTripsByNewestDateTime } from '../utils/tripSorting';
 import { getTransportColor, normalizeTransportType } from '../constants/transport';
 import { getTripRouteSubtitle, getTripRouteTitle } from '../utils/routeDisplay';
 import { includesSearchTerm } from '../utils/search';
@@ -95,7 +96,7 @@ export default function TripsPage({ trips, onEdit, onDelete, onDetail, onNewTrip
           matchesMonth
         );
       })
-      .sort((a, b) => String(b.date).localeCompare(String(a.date)));
+      .sort(compareTripsByNewestDateTime);
   }, [filters, trips]);
   const filteredTrips = useMemo(
     () => baseFilteredTrips.filter((trip) => matchesTravelMapFilters(trip, mapFilters)),
@@ -333,7 +334,10 @@ export default function TripsPage({ trips, onEdit, onDelete, onDetail, onNewTrip
                     }
                   }}
                 >
-                  <td>{formatDate(trip.date)}</td>
+                  <td>
+                    <time>{formatDate(trip.date)}</time>
+                    <small>{trip.departureTime || 'Saat yok'}</small>
+                  </td>
                   <td>
                     <strong>{getTripRouteTitle(trip)}</strong>
                     {getTripRouteSubtitle(trip) ? <small>{getTripRouteSubtitle(trip)}</small> : null}

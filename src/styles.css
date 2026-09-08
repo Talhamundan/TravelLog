@@ -1471,6 +1471,33 @@ button {
   cursor: pointer;
 }
 
+.app-bootstrap {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 12px;
+  background:
+    radial-gradient(circle at 18% 18%, rgb(56 189 248 / 16%), transparent 26rem),
+    radial-gradient(circle at 82% 8%, rgb(245 158 11 / 10%), transparent 28rem),
+    linear-gradient(135deg, #07111f 0%, #081322 58%, #111827 100%);
+  color: #e5edf8;
+}
+
+.app-bootstrap .brand-mark {
+  width: 62px;
+  height: 62px;
+  box-shadow: 0 18px 40px rgb(34 211 238 / 18%);
+}
+
+.app-bootstrap strong {
+  font-size: 1.45rem;
+}
+
+.app-bootstrap small {
+  color: #9fb2c8;
+}
+
 .login-screen {
   min-height: 100vh;
   position: relative;
@@ -4939,6 +4966,12 @@ td {
   white-space: nowrap;
 }
 
+.dashboard-recent-list .recent-trip time small {
+  display: block;
+  margin-top: 2px;
+  color: #8391a7;
+}
+
 .dashboard-recent-list .recent-trip strong {
   color: #edf5ff;
   display: block;
@@ -5114,7 +5147,7 @@ td {
 
 .new-trip-cta {
   display: flex;
-  min-height: 54px;
+  min-height: 58px;
   align-items: center;
   justify-content: center;
   gap: 14px;
@@ -5193,10 +5226,20 @@ td {
     radial-gradient(circle at 12% 0%, rgb(37 99 235 / 10%), transparent 18rem),
     linear-gradient(180deg, #081322 0%, #050b16 100%);
   border-right: 1px solid rgb(148 163 184 / 13%);
+  transition: transform 180ms ease;
 }
 
 .main-area {
   margin-left: 286px;
+  transition: margin-left 180ms ease;
+}
+
+.app-layout.sidebar-collapsed .sidebar {
+  transform: translateX(-100%);
+}
+
+.app-layout.sidebar-collapsed .main-area {
+  margin-left: 0;
 }
 
 .brand {

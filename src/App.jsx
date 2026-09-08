@@ -1,23 +1,24 @@
 // TravelLog ana kabuğu: oturum, veri yükleme ve sayfa geçişlerini yönetir.
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { BarChart3, Building2, CalendarCheck2, CalendarDays, Car, Check, CreditCard, Eye, EyeOff, LayoutDashboard, Lock, Mail, Map, MapPinned, Plus, Route, Settings, Table2, TramFront } from 'lucide-react';
 import { hasFirebaseConfig } from './config/firebase';
 import { subscribeToAuth, signInWithGoogle, logout } from './services/authService';
 import { createDemoTrips, createTripsBulk, deleteOwnedItem, deleteTrip, listOwnedCollection, listTrips, saveOwnedItem, saveTrip } from './services/tripService';
 import AppShell from './components/AppShell';
 import Dashboard from './pages/Dashboard';
-import TripsPage from './pages/TripsPage';
-import TripFormPage from './pages/TripFormPage';
-import ReportsPage from './pages/ReportsPage';
-import SimpleDirectoryPage from './pages/SimpleDirectoryPage';
-import SettingsPage from './pages/SettingsPage';
-import MapPage from './pages/MapPage';
-import CalendarPage from './pages/Calendar';
-import ExpensesPage from './pages/Expenses';
-import PlannerPage from './pages/PlannerPage';
-import TurkeyMapPage from './pages/TurkeyMapPage';
-import IstanbulTransportPage from './pages/IstanbulTransportPage';
 import { normalizeTrips } from './utils/tripNormalizers';
+
+const TripsPage = lazy(() => import('./pages/TripsPage'));
+const TripFormPage = lazy(() => import('./pages/TripFormPage'));
+const ReportsPage = lazy(() => import('./pages/ReportsPage'));
+const SimpleDirectoryPage = lazy(() => import('./pages/SimpleDirectoryPage'));
+const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const MapPage = lazy(() => import('./pages/MapPage'));
+const CalendarPage = lazy(() => import('./pages/Calendar'));
+const ExpensesPage = lazy(() => import('./pages/Expenses'));
+const PlannerPage = lazy(() => import('./pages/PlannerPage'));
+const TurkeyMapPage = lazy(() => import('./pages/TurkeyMapPage'));
+const IstanbulTransportPage = lazy(() => import('./pages/IstanbulTransportPage'));
 
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -35,10 +36,15 @@ const navItems = [
   { id: 'settings', label: 'Ayarlar', icon: Settings },
 ];
 
+const currentYear = String(new Date().getFullYear());
+const currentMonth = String(new Date().getMonth() + 1);
+
 export default function App() {
   const [user, setUser] = useState(null);
+  const [authReady, setAuthReady] = useState(!hasFirebaseConfig);
   const [activePage, setActivePage] = useState('dashboard');
-  const [yearFilter, setYearFilter] = useState('');
+  const [yearFilter, setYearFilter] = useState(currentYear);
+  const [monthFilter, setMonthFilter] = useState(currentMonth);
   const [trips, setTrips] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [vehicles, setVehicles] = useState([]);
@@ -58,6 +64,16 @@ export default function App() {
     () =>
       subscribeToAuth((nextUser) => {
         setUser(nextUser);
+        setAuthReady(true);
+        if (!nextUser) {
+          setTrips([]);
+          setCompanies([]);
+          setVehicles([]);
+          setSavedLocations([]);
+          setExpenses([]);
+          setTurkeyMapEntries([]);
+          setLoading(false);
+        }
       }),
     [],
   );
@@ -79,16 +95,20 @@ export default function App() {
     const { showLoading = false } = options;
     if (showLoading) setLoading(true);
     setLastError('');
+    let loadedPrimaryData = false;
     try {
-      const [tripRows, companyRows, vehicleRows, locationRows, expenseRows, turkeyMapRows] = await Promise.all([
-        listTrips(userId),
+      const tripRows = await listTrips(userId);
+      setTrips(tripRows);
+      loadedPrimaryData = true;
+      if (showLoading) setLoading(false);
+
+      const [companyRows, vehicleRows, locationRows, expenseRows, turkeyMapRows] = await Promise.all([
         listOwnedCollection('companies', userId),
         listOwnedCollection('vehicles', userId),
         listOwnedCollection('locations', userId),
         listOwnedCollection('expenses', userId),
         listOwnedCollection('turkeyMap', userId),
       ]);
-      setTrips(tripRows);
       setCompanies(companyRows.length ? companyRows : []);
       setVehicles(vehicleRows);
       setSavedLocations(locationRows);
@@ -99,12 +119,14 @@ export default function App() {
       console.error('Firestore error', error);
       setLastError(message);
       if (showLoading) {
-        setTrips([]);
-        setCompanies([]);
-        setVehicles([]);
-        setSavedLocations([]);
-        setExpenses([]);
-        setTurkeyMapEntries([]);
+        if (!loadedPrimaryData) {
+          setTrips([]);
+          setCompanies([]);
+          setVehicles([]);
+          setSavedLocations([]);
+          setExpenses([]);
+          setTurkeyMapEntries([]);
+        }
       }
     } finally {
       if (showLoading) setLoading(false);
@@ -117,12 +139,19 @@ export default function App() {
   );
   const normalizedTrips = useMemo(() => normalizeTrips(trips), [trips]);
   const availableYears = useMemo(
-    () => [...new Set(normalizedTrips.map((trip) => new Date(trip.date).getFullYear()).filter(Boolean))].sort((a, b) => b - a),
+    () => [...new Set([Number(currentYear), ...normalizedTrips.map((trip) => new Date(trip.date).getFullYear()).filter(Boolean)])].sort((a, b) => b - a),
     [normalizedTrips],
   );
   const visibleTrips = useMemo(
-    () => (yearFilter ? normalizedTrips.filter((trip) => new Date(trip.date).getFullYear() === Number(yearFilter)) : normalizedTrips),
-    [normalizedTrips, yearFilter],
+    () =>
+      normalizedTrips.filter((trip) => {
+        const date = new Date(trip.date);
+        if (Number.isNaN(date.getTime())) return !yearFilter && !monthFilter;
+        if (yearFilter && date.getFullYear() !== Number(yearFilter)) return false;
+        if (monthFilter && date.getMonth() + 1 !== Number(monthFilter)) return false;
+        return true;
+      }),
+    [monthFilter, normalizedTrips, yearFilter],
   );
 
   const handleCreateDemoData = async () => {
@@ -291,6 +320,9 @@ export default function App() {
     dashboard: (
       <Dashboard
         trips={visibleTrips}
+        allTrips={normalizedTrips}
+        yearFilter={yearFilter}
+        monthFilter={monthFilter}
         onOpenTrips={() => setActivePage('trips')}
         onNewTrip={() => setActivePage('new-trip')}
         onSeed={handleCreateDemoData}
@@ -338,6 +370,8 @@ export default function App() {
           { key: 'brand', label: 'Marka' },
           { key: 'model', label: 'Model' },
           { key: 'fuelType', label: 'Yakıt türü' },
+          { key: 'fuelConsumptionPer100Km', label: 'Ort. tüketim / 100 km', type: 'number', step: '0.1' },
+          { key: 'fuelUnitPrice', label: 'Birim fiyat', type: 'number', step: '0.01' },
           { key: 'notes', label: 'Not' },
         ]}
         onSave={(item) => handleSaveDirectoryItem('vehicles', item)}
@@ -428,6 +462,14 @@ export default function App() {
       />
     ),
   }[activePage];
+
+  if (!authReady) {
+    return <AppBootstrap />;
+  }
+
+  if (user && loading && !trips.length) {
+    return <AppBootstrap />;
+  }
 
   if (!user) {
     return (
@@ -522,9 +564,12 @@ export default function App() {
       }}
       user={user}
       trips={visibleTrips}
+      allTrips={normalizedTrips}
       availableYears={availableYears}
       yearFilter={yearFilter}
       onYearFilterChange={setYearFilter}
+      monthFilter={monthFilter}
+      onMonthFilterChange={setMonthFilter}
       vehicles={vehicles}
       companies={companies}
       savedLocations={savedLocations}
@@ -540,8 +585,37 @@ export default function App() {
       onConfirm={handleDeleteTrip}
       onCancelConfirm={() => setConfirmState(null)}
     >
-      {page}
+      <Suspense fallback={<PageFallback />}>
+        {page}
+      </Suspense>
     </AppShell>
+  );
+}
+
+function AppBootstrap() {
+  return (
+    <main className="app-bootstrap" aria-busy="true">
+      <span className="brand-mark travel-logo" aria-hidden="true">
+        <Route size={30} />
+        <i />
+      </span>
+      <strong>TravelLog</strong>
+      <small>Panel hazırlanıyor...</small>
+    </main>
+  );
+}
+
+function PageFallback() {
+  return (
+    <div className="skeleton-stack">
+      <div className="skeleton-line wide" />
+      <div className="skeleton-grid">
+        {Array.from({ length: 4 }, (_, index) => (
+          <div className="skeleton-card" key={index} />
+        ))}
+      </div>
+      <div className="skeleton-panel" />
+    </div>
   );
 }
 

@@ -12,6 +12,7 @@ import { formatPlate } from '../utils/plateFormatter';
 import { calculateDurationMinutes, calculateTotalCost, toNumber } from '../utils/tripCalculations';
 import { getRoute } from '../services/osmRouteService';
 import { getTripWaypoints } from '../utils/tripNormalizers';
+import { compareTripsByNewestDateTime } from '../utils/tripSorting';
 
 const steps = [
   { title: 'Ulaşım türü', hint: 'Nasıl seyahat ettiniz?' },
@@ -29,13 +30,12 @@ const transportCards = [
   { type: 'Diğer', icon: CircleHelp, title: 'Diğer', desc: 'Diğer ulaşım türleri', meta: 'Gemi, feribot, vb.' },
 ];
 
-const fuelTypes = ['Benzin', 'Dizel', 'LPG', 'Hibrit', 'Elektrik', 'Diğer'];
-
 export default function TripFormPage({ initialTrip, companies, vehicles, trips = [], savedLocations = [], onSave, onCancel }) {
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [manualDistance, setManualDistance] = useState(Boolean(initialTrip?.distanceManuallyEdited));
   const [manualDuration, setManualDuration] = useState(Boolean(initialTrip?.durationManuallyEdited));
+  const [manualFuelCost, setManualFuelCost] = useState(Boolean(initialTrip?.fuelCostManuallyEdited));
   const [form, setForm] = useState(() => createInitialForm(initialTrip));
   const [routeEstimate, setRouteEstimate] = useState({ distanceKm: 0, durationMinutes: 0, source: '' });
   const [routeError, setRouteError] = useState('');
@@ -43,6 +43,7 @@ export default function TripFormPage({ initialTrip, companies, vehicles, trips =
   useEffect(() => {
     setForm(createInitialForm(initialTrip));
     setStep(0);
+    setManualFuelCost(Boolean(initialTrip?.fuelCostManuallyEdited));
   }, [initialTrip]);
 
   const autoDistance = useMemo(
@@ -103,6 +104,17 @@ export default function TripFormPage({ initialTrip, companies, vehicles, trips =
     }
   }, [durationAuto, form.durationMinutes, manualDuration]);
 
+  useEffect(() => {
+    const fuelCost = estimateFuelCostFromAverage(form, distanceKm);
+    if (form.transportType !== 'Araç' || manualFuelCost || !fuelCost) return;
+    setForm((current) => ({
+      ...current,
+      fuelCost,
+      fuelCostAutoCalculated: true,
+      fuelCostManuallyEdited: false,
+    }));
+  }, [distanceKm, form.fuelConsumptionPer100Km, form.fuelUnitPrice, form.transportType, manualFuelCost]);
+
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
   const updateLocation = (prefix, text, selected) => {
     const found = selected || null;
@@ -124,14 +136,26 @@ export default function TripFormPage({ initialTrip, companies, vehicles, trips =
     const allMissing = getMissingFields(form, 4);
     if (allMissing.length) return;
     setSaving(true);
+    const fuelCostEstimate = estimateFuelCostFromAverage(form, distanceKm);
+    const effectiveForm =
+      form.transportType === 'Araç' && !manualFuelCost && fuelCostEstimate
+        ? {
+            ...form,
+            fuelCost: fuelCostEstimate,
+            fuelCostAutoCalculated: true,
+            fuelCostManuallyEdited: false,
+          }
+        : form;
+    const effectiveTotalCost = calculateTotalCost({ ...effectiveForm, distanceKm });
+    const effectiveCostPerKm = distanceKm ? effectiveTotalCost / distanceKm : 0;
     const payload = {
-      ...form,
-      title: form.title || `${form.fromText || 'Başlangıç'} → ${form.toText || 'Varış'}`,
-      from: form.fromLocation || form.fromText,
-      to: form.toLocation || form.toText,
-      waypoints: (form.waypoints || []).map((point, index) => ({ ...point, order: index })),
-      stops: (form.waypoints || []).map((point) => point.name || point.formattedAddress).filter(Boolean),
-      route: routeEstimate.route || form.route || null,
+      ...effectiveForm,
+      title: effectiveForm.title || `${effectiveForm.fromText || 'Başlangıç'} → ${effectiveForm.toText || 'Varış'}`,
+      from: effectiveForm.fromLocation || effectiveForm.fromText,
+      to: effectiveForm.toLocation || effectiveForm.toText,
+      waypoints: (effectiveForm.waypoints || []).map((point, index) => ({ ...point, order: index })),
+      stops: (effectiveForm.waypoints || []).map((point) => point.name || point.formattedAddress).filter(Boolean),
+      route: routeEstimate.route || effectiveForm.route || null,
       distanceKm,
       durationMinutes,
       distanceAutoCalculated: Boolean(routeEstimate.route),
@@ -140,11 +164,15 @@ export default function TripFormPage({ initialTrip, companies, vehicles, trips =
       durationManuallyEdited: manualDuration,
       distanceSource: routeEstimate.route?.provider || routeEstimate.source || (autoDistance ? 'estimated' : ''),
       distanceCalculation: routeEstimate.route?.distanceCalculation || '',
-      totalCost,
-      costPerKm,
-      vehiclePlate: form.plate || form.vehiclePlate || '',
-      routeNote: form.routeNote || '',
-      notes: form.notes || '',
+      totalCost: effectiveTotalCost,
+      costPerKm: effectiveCostPerKm,
+      vehiclePlate: effectiveForm.plate || effectiveForm.vehiclePlate || '',
+      fuelConsumptionPer100Km: effectiveForm.fuelConsumptionPer100Km || '',
+      fuelUnitPrice: effectiveForm.fuelUnitPrice || '',
+      fuelCostAutoCalculated: Boolean(effectiveForm.fuelCostAutoCalculated),
+      fuelCostManuallyEdited: Boolean(effectiveForm.fuelCostManuallyEdited),
+      routeNote: effectiveForm.routeNote || '',
+      notes: effectiveForm.notes || '',
     };
     await onSave(payload);
     setSaving(false);
@@ -158,14 +186,16 @@ export default function TripFormPage({ initialTrip, companies, vehicles, trips =
         <section className="panel wizard-card">
           {step === 0 && <TransportTypeStep form={form} update={update} />}
           {step === 1 && <RouteStep form={form} trips={trips} savedLocations={savedLocations} updateLocation={updateLocation} update={update} />}
-          {step === 2 && <DetailsStep form={form} update={update} companies={companies} vehicles={vehicles} />}
+          {step === 2 && <DetailsStep form={form} update={update} companies={companies} vehicles={vehicles} trips={trips} setManualFuelCost={setManualFuelCost} />}
           {step === 3 && (
             <CostStep
               form={form}
               update={update}
               distanceKm={distanceKm}
+              estimatedFuelCost={estimateFuelCostFromAverage(form, distanceKm)}
               setManualDistance={setManualDistance}
               setManualDuration={setManualDuration}
+              setManualFuelCost={setManualFuelCost}
               costPerKm={costPerKm}
               durationMinutes={durationMinutes}
               routeError={routeError}
@@ -320,8 +350,9 @@ function RouteStep({ form, trips = [], savedLocations = [], updateLocation, upda
   );
 }
 
-function DetailsStep({ form, update, companies, vehicles }) {
-  const companyOptions = getRegisteredCompanyOptions(companies, form.transportType);
+function DetailsStep({ form, update, companies, vehicles, trips, setManualFuelCost }) {
+  const companyOptions = getRegisteredCompanyOptions(companies, form.transportType, trips);
+  const vehicleOptions = getRegisteredVehicleOptions(vehicles, trips);
   const selectedVehicleId = form.vehicleId || vehicles.find((vehicle) => formatPlate(vehicle.plate || '') === formatPlate(form.plate || form.vehiclePlate || ''))?.id || '';
 
   useEffect(() => {
@@ -332,6 +363,8 @@ function DetailsStep({ form, update, companies, vehicles }) {
     update('vehicleName', vehicle.name || '');
     update('plate', formatPlate(vehicle.plate || ''));
     update('fuelType', vehicle.fuelType || form.fuelType);
+    update('fuelConsumptionPer100Km', vehicle.fuelConsumptionPer100Km || '');
+    update('fuelUnitPrice', vehicle.fuelUnitPrice || '');
   }, [form.fuelType, form.plate, form.transportType, form.vehicleId, form.vehiclePlate, selectedVehicleId, update, vehicles]);
 
   return (
@@ -344,15 +377,19 @@ function DetailsStep({ form, update, companies, vehicles }) {
         {form.transportType === 'Araç' ? (
           <>
             <Field label="Filo / plaka">
-              <CustomSelect value={selectedVehicleId} options={vehicles.map((vehicle) => ({ value: vehicle.id, label: [vehicle.plate, vehicle.name].filter(Boolean).join(' · ') }))} placeholder="Plaka seç" onChange={(value) => {
+              <CustomSelect value={selectedVehicleId} options={vehicleOptions} placeholder="Plaka seç" onChange={(value) => {
                 const vehicle = vehicles.find((item) => item.id === value);
                 update('vehicleId', vehicle?.id || '');
                 update('vehicleName', vehicle?.name || '');
                 update('plate', formatPlate(vehicle?.plate || ''));
                 update('fuelType', vehicle?.fuelType || form.fuelType);
+                update('fuelConsumptionPer100Km', vehicle?.fuelConsumptionPer100Km || '');
+                update('fuelUnitPrice', vehicle?.fuelUnitPrice || '');
+                update('fuelCostAutoCalculated', false);
+                update('fuelCostManuallyEdited', false);
+                setManualFuelCost(false);
               }} />
             </Field>
-            <Field label="Yakıt türü"><CustomSelect value={form.fuelType} options={fuelTypes} placeholder="Yakıt türü" onChange={(value) => update('fuelType', value)} /></Field>
           </>
         ) : (
           <Field label={form.transportType === 'Uçak' ? 'Havayolu firması' : form.transportType === 'Otobüs' ? 'Otobüs firması' : 'Firma'}>
@@ -391,7 +428,7 @@ function DetailsStep({ form, update, companies, vehicles }) {
   );
 }
 
-function CostStep({ form, update, distanceKm, durationMinutes, setManualDistance, setManualDuration, costPerKm, routeError }) {
+function CostStep({ form, update, distanceKm, durationMinutes, estimatedFuelCost, setManualDistance, setManualDuration, setManualFuelCost, costPerKm, routeError }) {
   const isCar = form.transportType === 'Araç';
   return (
     <>
@@ -407,7 +444,20 @@ function CostStep({ form, update, distanceKm, durationMinutes, setManualDistance
         {!isCar && <Field label="Bilet fiyatı"><input type="number" min="0" step="0.01" value={form.ticketPrice} onChange={(event) => update('ticketPrice', event.target.value)} /></Field>}
         {isCar && (
           <>
-            <Field label="Yakıt masrafı"><input type="number" min="0" step="0.01" value={form.fuelCost} onChange={(event) => update('fuelCost', event.target.value)} /></Field>
+            <Field label="Yakıt masrafı">
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.fuelCost}
+                placeholder={estimatedFuelCost ? String(estimatedFuelCost) : ''}
+                onChange={(event) => {
+                  setManualFuelCost(true);
+                  update('fuelCost', event.target.value);
+                  update('fuelCostManuallyEdited', true);
+                }}
+              />
+            </Field>
             <Field label="Yol / otoyol masrafı"><input type="number" min="0" step="0.01" value={form.roadCost} onChange={(event) => update('roadCost', event.target.value)} /></Field>
             <Field label="Köprü masrafı"><input type="number" min="0" step="0.01" value={form.bridgeCost} onChange={(event) => update('bridgeCost', event.target.value)} /></Field>
             <Field label="Otopark"><input type="number" min="0" step="0.01" value={form.parkingCost} onChange={(event) => update('parkingCost', event.target.value)} /></Field>
@@ -467,7 +517,7 @@ function SummaryRow({ label, value }) {
   return <div><span>{label}</span><strong>{value}</strong></div>;
 }
 
-function getRegisteredCompanyOptions(companies = [], transportType = '') {
+function getRegisteredCompanyOptions(companies = [], transportType = '', trips = []) {
   const normalizedTransport = String(transportType || '').toLocaleLowerCase('tr-TR');
   const options = companies
     .filter(Boolean)
@@ -482,7 +532,47 @@ function getRegisteredCompanyOptions(companies = [], transportType = '') {
     })
     .map((company) => (typeof company === 'string' ? company : company.name))
     .filter(Boolean);
-  return [...new Set(options)].sort((a, b) => a.localeCompare(b, 'tr'));
+  const uniqueOptions = [...new Set(options)];
+  if (normalizedTransport !== 'otobüs') return uniqueOptions.sort((a, b) => a.localeCompare(b, 'tr'));
+
+  const recentBusCompanyOrder = new Map();
+  [...trips].sort(compareTripsByNewestDateTime).forEach((trip) => {
+    if (String(trip.transportType || '').toLocaleLowerCase('tr-TR') !== 'otobüs') return;
+    const company = String(trip.company || '').trim();
+    if (company && !recentBusCompanyOrder.has(company)) recentBusCompanyOrder.set(company, recentBusCompanyOrder.size);
+  });
+
+  return uniqueOptions.sort((a, b) => {
+    const aOrder = recentBusCompanyOrder.has(a) ? recentBusCompanyOrder.get(a) : Number.POSITIVE_INFINITY;
+    const bOrder = recentBusCompanyOrder.has(b) ? recentBusCompanyOrder.get(b) : Number.POSITIVE_INFINITY;
+    if (aOrder !== bOrder) return aOrder - bOrder;
+    return a.localeCompare(b, 'tr');
+  });
+}
+
+function getRegisteredVehicleOptions(vehicles = [], trips = []) {
+  const recentVehicleOrder = new Map();
+  [...trips].sort(compareTripsByNewestDateTime).forEach((trip) => {
+    if (String(trip.transportType || '').toLocaleLowerCase('tr-TR') !== 'araç') return;
+    const keys = [trip.vehicleId, formatPlate(trip.vehiclePlate || trip.plate || '')].filter(Boolean);
+    keys.forEach((key) => {
+      if (!recentVehicleOrder.has(key)) recentVehicleOrder.set(key, recentVehicleOrder.size);
+    });
+  });
+
+  return [...vehicles]
+    .sort((a, b) => {
+      const aKeys = [a.id, formatPlate(a.plate || '')].filter(Boolean);
+      const bKeys = [b.id, formatPlate(b.plate || '')].filter(Boolean);
+      const aOrder = Math.min(...aKeys.map((key) => recentVehicleOrder.get(key) ?? Number.POSITIVE_INFINITY));
+      const bOrder = Math.min(...bKeys.map((key) => recentVehicleOrder.get(key) ?? Number.POSITIVE_INFINITY));
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      return String(a.plate || '').localeCompare(String(b.plate || ''), 'tr');
+    })
+    .map((vehicle) => ({
+      value: vehicle.id,
+      label: [formatPlate(vehicle.plate || ''), vehicle.name, vehicleFuelAverageLabel(vehicle)].filter(Boolean).join(' · '),
+    }));
 }
 
 function createInitialForm(initialTrip) {
@@ -494,6 +584,7 @@ function createInitialForm(initialTrip) {
     transportType: initialTrip?.transportType || 'Araç',
     currency: initialTrip?.currency || 'TRY',
     ...initialTrip,
+    date: initialTrip?.date || todayInputValue(),
     fromText,
     toText,
     stopsText: Array.isArray(initialTrip?.stops) ? initialTrip.stops.join(', ') : initialTrip?.stopsText || initialTrip?.stops || '',
@@ -502,6 +593,29 @@ function createInitialForm(initialTrip) {
     toLocation: initialTrip?.toLocation || findTravelLocation(toText),
     plate: initialTrip?.plate || initialTrip?.vehiclePlate || '',
   };
+}
+
+function todayInputValue() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function estimateFuelCostFromAverage(form, distanceKm) {
+  const consumption = Number.parseFloat(form.fuelConsumptionPer100Km);
+  const unitPrice = Number.parseFloat(form.fuelUnitPrice);
+  const distance = Number.parseFloat(distanceKm);
+  if (!Number.isFinite(consumption) || !Number.isFinite(unitPrice) || !Number.isFinite(distance)) return 0;
+  if (consumption <= 0 || unitPrice <= 0 || distance <= 0) return 0;
+  return Math.round(((distance * consumption) / 100) * unitPrice * 100) / 100;
+}
+
+function vehicleFuelAverageLabel(vehicle) {
+  const consumption = Number(vehicle?.fuelConsumptionPer100Km || 0);
+  if (!consumption) return '';
+  return `${consumption} / 100 km`;
 }
 
 function buildRecentLocations(trips = []) {

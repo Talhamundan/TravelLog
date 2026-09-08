@@ -5,20 +5,11 @@ import TravelMapBase from './maps/TravelMapBase';
 import { getStopCoords } from '../utils/cityCoordinates';
 import { locationCity, resolveLocationCoords } from '../utils/location';
 import { getRoute } from '../services/osmRouteService';
-import { tripProviderLabel } from '../utils/tripDisplay';
 import { getTransportColor, normalizeTransportType, transportTypes } from '../constants/transport';
 import { getLocationLabel, getTripRouteTitle } from '../utils/routeDisplay';
-import { includesSearchTerm } from '../utils/search';
+import { defaultDashboardMapFilters, matchesTravelMapFilters } from '../utils/travelMapFilters';
 
-const dateFilters = ['Tüm zamanlar', 'Son 30 gün', 'Bu ay', 'Bu yıl'];
-
-export const defaultDashboardMapFilters = {
-  transport: 'Tüm rotalar',
-  dateRange: 'Tüm zamanlar',
-  query: '',
-  realOnly: false,
-  showFallback: true,
-};
+export { defaultDashboardMapFilters, matchesTravelMapFilters };
 
 export default function TravelMap({
   trips,
@@ -69,6 +60,10 @@ export default function TravelMap({
         .map((state) => state.displayTrip && { ...state.displayTrip, __routeFrequency: routeFrequencies[routeFrequencyKey(state.displayTrip)] || 1 })
         .filter(Boolean),
     [routeFrequencies, routeStates],
+  );
+  const legendTransportTypes = useMemo(
+    () => transportTypes.filter((type) => displayTrips.some((trip) => normalizeTransportType(trip.transportType) === type)),
+    [displayTrips],
   );
   const loadingCount = routeStates.filter((state) => state.loading).length;
 
@@ -258,7 +253,7 @@ export default function TravelMap({
       )}
       {showRoutes && (
         <div className="map-legend">
-          {transportTypes.map((label) => (
+          {legendTransportTypes.map((label) => (
             <span key={label}><i style={{ background: getTransportColor(label) }} />{label}</span>
           ))}
         </div>
@@ -274,13 +269,6 @@ function DashboardMapFilters({ filters, setFilters, transportOptions }) {
         <div className="map-filter-group">
           {transportOptions.map((value) => (
             <button type="button" key={value} className={filters.transport === value ? 'active' : ''} onClick={() => setFilters((current) => ({ ...current, transport: value }))}>
-              {value}
-            </button>
-          ))}
-        </div>
-        <div className="map-filter-group compact">
-          {dateFilters.map((value) => (
-            <button type="button" key={value} className={filters.dateRange === value ? 'active' : ''} onClick={() => setFilters((current) => ({ ...current, dateRange: value }))}>
               {value}
             </button>
           ))}
@@ -324,41 +312,6 @@ function buildRouteState(trip, routeCache, filters) {
 
 function hasRealRoute(trip = {}) {
   return Boolean(trip.route?.overviewPath?.length || trip.route?.overviewPolyline || trip.route?.provider === 'airline-estimate');
-}
-
-export function matchesTravelMapFilters(trip, filters = defaultDashboardMapFilters) {
-  if (filters.transport !== 'Tüm rotalar' && normalizeTransportType(trip.transportType) !== filters.transport) return false;
-  if (!matchesDateFilter(trip.date, filters.dateRange)) return false;
-  const query = filters.query.trim();
-  if (!query) return true;
-  return includesSearchTerm([
-    getTripRouteTitle(trip),
-    tripProviderLabel(trip),
-    trip.company,
-    trip.plate,
-    trip.vehiclePlate,
-    trip.vehicleName,
-    trip.licensePlate,
-    trip.pnr,
-    trip.ticketNo,
-    trip.fromText,
-    trip.toText,
-    trip.notes,
-  ], query);
-}
-
-function matchesDateFilter(dateValue, filter) {
-  if (filter === 'Tüm zamanlar') return true;
-  const date = new Date(dateValue);
-  if (Number.isNaN(date.getTime())) return false;
-  const now = new Date();
-  if (filter === 'Bu yıl') return date.getFullYear() === now.getFullYear();
-  if (filter === 'Bu ay') return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
-  if (filter === 'Son 30 gün') {
-    const ms = now.getTime() - date.getTime();
-    return ms >= 0 && ms <= 30 * 24 * 60 * 60 * 1000;
-  }
-  return true;
 }
 
 function routeCacheKey(trip = {}) {
