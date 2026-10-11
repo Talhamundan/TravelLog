@@ -30,7 +30,7 @@ const navItems = [
   { id: 'map', label: 'Harita', icon: Map },
   { id: 'expenses', label: 'Masraflar', icon: CreditCard },
   { id: 'calendar', label: 'Takvim', icon: CalendarDays },
-  { id: 'planner', label: 'Planlayıcı', icon: CalendarCheck2 },
+  { id: 'planner', label: 'Rota Planlayıcı', icon: CalendarCheck2 },
   { id: 'istanbul-transport', label: 'İstanbul Ulaşım', icon: TramFront },
   { id: 'turkey-map', label: 'Türkiye Haritası', icon: MapPinned },
   { id: 'settings', label: 'Ayarlar', icon: Settings },
@@ -38,6 +38,48 @@ const navItems = [
 
 const currentYear = String(new Date().getFullYear());
 const currentMonth = String(new Date().getMonth() + 1);
+const dataCacheKey = (userId) => `travellog:lastData:${userId}`;
+
+const readCachedData = (userId) => {
+  if (!userId) return null;
+  try {
+    return JSON.parse(localStorage.getItem(dataCacheKey(userId)) || 'null');
+  } catch {
+    return null;
+  }
+};
+
+const writeCachedData = (userId, data) => {
+  if (!userId) return;
+  try {
+    localStorage.setItem(dataCacheKey(userId), JSON.stringify({ ...data, cachedAt: Date.now() }));
+  } catch {
+    // Cache is only a resilience layer; storage quota/private mode should not block live data.
+  }
+};
+
+const applyCachedData = (cached, setters) => {
+  if (!cached) return false;
+  setters.setTrips(cached.trips || []);
+  setters.setCompanies(cached.companies || []);
+  setters.setVehicles(cached.vehicles || []);
+  setters.setSavedLocations(cached.savedLocations || []);
+  setters.setExpenses(cached.expenses || []);
+  setters.setTurkeyMapEntries(cached.turkeyMapEntries || []);
+  return true;
+};
+
+const cachedHasUsableData = (cached) => {
+  if (!cached) return false;
+  return Boolean(
+    cached.trips?.length ||
+      cached.companies?.length ||
+      cached.vehicles?.length ||
+      cached.savedLocations?.length ||
+      cached.expenses?.length ||
+      cached.turkeyMapEntries?.length,
+  );
+};
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -54,6 +96,8 @@ export default function App() {
   const [editingTrip, setEditingTrip] = useState(null);
   const [detailTrip, setDetailTrip] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [dataReady, setDataReady] = useState(false);
+  const [bootstrapError, setBootstrapError] = useState('');
   const [lastError, setLastError] = useState('');
   const [toast, setToast] = useState(null);
   const [confirmState, setConfirmState] = useState(null);
@@ -65,6 +109,7 @@ export default function App() {
       subscribeToAuth((nextUser) => {
         setUser(nextUser);
         setAuthReady(true);
+        setDataReady(false);
         if (!nextUser) {
           setTrips([]);
           setCompanies([]);
@@ -73,6 +118,8 @@ export default function App() {
           setExpenses([]);
           setTurkeyMapEntries([]);
           setLoading(false);
+          setDataReady(false);
+          setBootstrapError('');
         }
       }),
     [],
@@ -80,7 +127,9 @@ export default function App() {
 
   useEffect(() => {
     if (!user?.uid) return;
-    refreshData(user.uid, { showLoading: true });
+    setDataReady(false);
+    setBootstrapError('');
+    refreshData(user.uid, { initial: true });
   }, [user?.uid]);
 
   useEffect(() => {
@@ -91,16 +140,32 @@ export default function App() {
     });
   }, [activePage]);
 
-  const refreshData = async (userId = user.uid, options = {}) => {
-    const { showLoading = false } = options;
-    if (showLoading) setLoading(true);
+  const refreshData = async (userId = user?.uid, options = {}) => {
+    const { initial = false, showLoading = false } = options;
+    if (!userId) return;
+
+    const cacheSetters = {
+      setTrips,
+      setCompanies,
+      setVehicles,
+      setSavedLocations,
+      setExpenses,
+      setTurkeyMapEntries,
+    };
+
+    if (initial) {
+      setLoading(true);
+      setBootstrapError('');
+    } else if (showLoading) {
+      setLoading(true);
+    }
     setLastError('');
-    let loadedPrimaryData = false;
+
+    let loadedTrips = false;
     try {
       const tripRows = await listTrips(userId);
       setTrips(tripRows);
-      loadedPrimaryData = true;
-      if (showLoading) setLoading(false);
+      loadedTrips = true;
 
       const [companyRows, vehicleRows, locationRows, expenseRows, turkeyMapRows] = await Promise.all([
         listOwnedCollection('companies', userId),
@@ -114,22 +179,33 @@ export default function App() {
       setSavedLocations(locationRows);
       setExpenses(expenseRows);
       setTurkeyMapEntries(turkeyMapRows);
+      writeCachedData(userId, {
+        trips: tripRows,
+        companies: companyRows.length ? companyRows : [],
+        vehicles: vehicleRows,
+        savedLocations: locationRows,
+        expenses: expenseRows,
+        turkeyMapEntries: turkeyMapRows,
+      });
+      if (initial) setDataReady(true);
     } catch (error) {
       const message = error?.message || 'Veriler yüklenirken beklenmeyen bir hata oluştu.';
       console.error('Firestore error', error);
       setLastError(message);
-      if (showLoading) {
-        if (!loadedPrimaryData) {
-          setTrips([]);
-          setCompanies([]);
-          setVehicles([]);
-          setSavedLocations([]);
-          setExpenses([]);
-          setTurkeyMapEntries([]);
+      if (initial) {
+        const cached = readCachedData(userId);
+        if (cachedHasUsableData(cached)) {
+          applyCachedData(cached, cacheSetters);
+          setDataReady(true);
+        } else {
+          setBootstrapError(message);
         }
+      } else if (!loadedTrips) {
+        const cached = readCachedData(userId);
+        if (applyCachedData(cached, cacheSetters)) setDataReady(true);
       }
     } finally {
-      if (showLoading) setLoading(false);
+      if (initial || showLoading) setLoading(false);
     }
   };
 
@@ -222,14 +298,16 @@ export default function App() {
 
   const handleSaveDirectoryItem = async (collectionName, item) => {
     try {
-      await saveOwnedItem(collectionName, item, user.uid);
+      const saved = await saveOwnedItem(collectionName, item, user.uid);
       await refreshData();
       showToast('Kayıt eklendi.');
+      return saved;
     } catch (error) {
       const message = error?.message || 'Kayıt eklenemedi.';
       console.error('Firestore error', error);
       setLastError(message);
       showToast(message, 'error');
+      throw error;
     }
   };
 
@@ -360,18 +438,20 @@ export default function App() {
     vehicles: (
       <SimpleDirectoryPage
         title="Araçlar"
-        description="Araç seyahati maliyetleri için plakaları filo adına göre yönetin."
+        description="Kişisel seyahatlerinizde kullandığınız araçları, filo adlarını ve yakıt maliyetlerini yönetin."
         items={vehicles}
         trips={visibleTrips}
+        periodFiltered={false}
         type="vehicles"
         fields={[
           { key: 'plate', label: 'Plaka' },
           { key: 'name', label: 'Filo adı' },
           { key: 'brand', label: 'Marka' },
           { key: 'model', label: 'Model' },
+          { key: 'modelYear', label: 'Model yılı', type: 'number' },
           { key: 'fuelType', label: 'Yakıt türü' },
           { key: 'fuelConsumptionPer100Km', label: 'Ort. tüketim / 100 km', type: 'number', step: '0.1' },
-          { key: 'fuelUnitPrice', label: 'Birim fiyat', type: 'number', step: '0.01' },
+          { key: 'hgsClass', label: 'HGS sınıfı' },
           { key: 'notes', label: 'Not' },
         ]}
         onSave={(item) => handleSaveDirectoryItem('vehicles', item)}
@@ -387,6 +467,7 @@ export default function App() {
         description="Bilet aldığınız veya kullandığınız firmaları hızlı seçim listesine ekleyin."
         items={companies}
         trips={visibleTrips}
+        periodFiltered={Boolean(yearFilter || monthFilter)}
         type="companies"
         fields={[
           { key: 'name', label: 'Firma adı' },
@@ -414,8 +495,11 @@ export default function App() {
       <ExpensesPage
         trips={visibleTrips}
         expenses={expenses}
+        yearFilter={yearFilter}
+        monthFilter={monthFilter}
         vehicles={vehicles}
-        loading={loading}
+        dataReady={dataReady}
+        loading={loading && dataReady}
         onNewTrip={() => setActivePage('new-trip')}
         onSeed={handleCreateDemoData}
         onSaveExpense={handleSaveExpense}
@@ -426,7 +510,8 @@ export default function App() {
     calendar: (
       <CalendarPage
         trips={visibleTrips}
-        loading={loading}
+        dataReady={dataReady}
+        loading={loading && dataReady}
         onNewTrip={() => setActivePage('new-trip')}
         onSeed={handleCreateDemoData}
         onEdit={handleEditTrip}
@@ -435,8 +520,14 @@ export default function App() {
     ),
     planner: (
       <PlannerPage
-        trips={visibleTrips}
+        trips={normalizedTrips}
+        vehicles={vehicles}
+        savedLocations={savedLocations}
         onNewTrip={() => setActivePage('new-trip')}
+        onCreateTripFromRoute={(initialTrip) => {
+          setEditingTrip(initialTrip);
+          setActivePage('new-trip');
+        }}
         onDetail={setDetailTrip}
       />
     ),
@@ -467,8 +558,13 @@ export default function App() {
     return <AppBootstrap />;
   }
 
-  if (user && loading && !trips.length) {
-    return <AppBootstrap />;
+  if (user && !dataReady) {
+    return (
+      <AppBootstrap
+        error={bootstrapError}
+        onRetry={bootstrapError ? () => refreshData(user.uid, { initial: true }) : undefined}
+      />
+    );
   }
 
   if (!user) {
@@ -574,7 +670,7 @@ export default function App() {
       companies={companies}
       savedLocations={savedLocations}
       onLogout={logout}
-      loading={loading}
+      loading={loading && dataReady}
       error={lastError}
       detailTrip={detailTrip}
       onCloseDetail={() => setDetailTrip(null)}
@@ -592,15 +688,27 @@ export default function App() {
   );
 }
 
-function AppBootstrap() {
+function AppBootstrap({ error = '', onRetry }) {
   return (
-    <main className="app-bootstrap" aria-busy="true">
+    <main className="app-bootstrap" aria-busy={!error}>
       <span className="brand-mark travel-logo" aria-hidden="true">
         <Route size={30} />
         <i />
       </span>
       <strong>TravelLog</strong>
-      <small>Panel hazırlanıyor...</small>
+      {error ? (
+        <div className="app-bootstrap-status">
+          <p className="app-bootstrap-error">Veriler yüklenemedi. Bağlantınızı kontrol edip tekrar deneyin.</p>
+          <small>{error}</small>
+          {onRetry && (
+            <button type="button" className="primary-button app-bootstrap-retry" onClick={onRetry}>
+              Yeniden dene
+            </button>
+          )}
+        </div>
+      ) : (
+        <small>Panel hazırlanıyor...</small>
+      )}
     </main>
   );
 }

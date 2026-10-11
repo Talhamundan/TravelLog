@@ -3,14 +3,24 @@ import { getTransportColor } from '../constants/transport';
 import { formatCurrency, formatKm } from '../utils/formatters';
 
 const months = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+const chartLeft = 38;
+const chartRight = 320;
+const chartBottom = 112;
 
-export default function DashboardCharts({ trips }) {
+export default function DashboardCharts({ trips, yearFilter = '', monthFilter = '' }) {
   const data = createChartData(trips);
+  const periodSeries = monthFilter ? createDailySeries(trips, yearFilter, monthFilter) : {
+    labels: months,
+    km: data.monthly.map((item) => item.km),
+    masraf: data.monthly.map((item) => item.masraf),
+    kmTitle: 'Aylara Göre Km',
+    masrafTitle: 'Aylara Göre Masraf',
+  };
 
   return (
     <div className="chart-grid compact-chart-grid">
-      <MiniLineCard title="Aylara Göre Km" badge={formatKm(data.monthly.reduce((sum, item) => sum + item.km, 0))} data={data.monthly.map((item) => item.km)} color="#38bdf8" fill="rgba(56, 189, 248, 0.12)" formatter={formatKm} />
-      <MiniLineCard title="Aylara Göre Masraf" badge={formatCurrency(data.monthly.reduce((sum, item) => sum + item.masraf, 0))} data={data.monthly.map((item) => item.masraf)} color="#c084fc" fill="rgba(192, 132, 252, 0.13)" formatter={formatCurrency} />
+      <MiniLineCard title={periodSeries.kmTitle} badge={formatKm(periodSeries.km.reduce((sum, value) => sum + value, 0))} data={periodSeries.km} labels={periodSeries.labels} color="#38bdf8" fill="rgba(56, 189, 248, 0.12)" formatter={formatKm} yFormatter={(value) => `${formatCompactNumber(value)} km`} />
+      <MiniLineCard title={periodSeries.masrafTitle} badge={formatCurrency(periodSeries.masraf.reduce((sum, value) => sum + value, 0))} data={periodSeries.masraf} labels={periodSeries.labels} color="#c084fc" fill="rgba(192, 132, 252, 0.13)" formatter={formatCurrency} yFormatter={(value) => `₺${formatCompactNumber(value)}`} />
       <DonutMiniCard items={data.transport.slice(0, 5)} />
       <CompanyMiniCard items={data.companies.slice(0, 5)} />
       <RoutesMiniPanel routes={data.routes.slice(0, 5)} />
@@ -18,19 +28,36 @@ export default function DashboardCharts({ trips }) {
   );
 }
 
-function MiniLineCard({ title, badge, data, color, fill, formatter = (value) => value }) {
-  const points = linePoints(data);
-  const area = `0,112 ${points} 320,112`;
+function MiniLineCard({ title, badge, data, labels = months, color, fill, formatter = (value) => value, yFormatter = formatter }) {
+  const scale = chartScale(data);
+  const points = linePoints(data, scale);
+  const area = `${chartLeft},${chartBottom} ${points} ${chartRight},${chartBottom}`;
+  const gridIndexes = chartGridIndexes(labels.length);
+  const labelIndexes = chartLabelIndexes(labels.length);
+  const yTicks = chartYTicks(scale);
+
   return (
     <section className="panel chart-panel mini-line-card">
       <div className="mini-chart-head">
         <h2>{title}</h2>
         <b>{badge}</b>
       </div>
-      <svg viewBox="0 0 320 128" role="img" aria-label={title}>
+      <svg viewBox="0 0 320 136" role="img" aria-label={title}>
         <g className="mini-grid">
-          {months.map((_, index) => <line key={index} x1={index * 29} x2={index * 29} y1="16" y2="112" />)}
-          {[28, 56, 84, 112].map((y) => <line key={y} x1="0" x2="320" y1={y} y2={y} />)}
+          {yTicks.map((tick) => {
+            const y = pointY(tick, scale);
+            return (
+              <g key={tick}>
+                <line x1={chartLeft} x2={chartRight} y1={y} y2={y} />
+                <text x={chartLeft - 6} y={y + 3} textAnchor="end">{yFormatter(tick)}</text>
+              </g>
+            );
+          })}
+          {gridIndexes.map((index) => {
+            const x = pointX(index, labels.length);
+            return <line key={index} x1={x} x2={x} y1="16" y2="112" />;
+          })}
+          <line className="mini-y-axis" x1={chartLeft} x2={chartLeft} y1="16" y2={chartBottom} />
         </g>
         <polygon points={area} fill={fill} />
         <polyline points={points} fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
@@ -40,12 +67,16 @@ function MiniLineCard({ title, badge, data, color, fill, formatter = (value) => 
             <g key={point} className="mini-chart-point">
               <circle cx={x} cy={y} r="9" fill="transparent" />
               <circle cx={x} cy={y} r="3.4" fill="#102033" stroke={color} strokeWidth="2" />
-              <text x={x} y={Number(y) - 12} textAnchor="middle">{months[index]}: {formatter(data[index])}</text>
+              <text x={x} y={Number(y) - 12} textAnchor="middle">{formatter(data[index])}</text>
             </g>
           );
         })}
+        <g className="mini-x-labels">
+          {labels.map((label, index) => (
+            labelIndexes.includes(index) ? <text key={`${label}-${index}`} x={pointX(index, labels.length)} y="130" textAnchor="middle">{label}</text> : null
+          ))}
+        </g>
       </svg>
-      <div className="mini-months">{months.map((month) => <span key={month}>{month}</span>)}</div>
     </section>
   );
 }
@@ -120,15 +151,71 @@ function RoutesMiniPanel({ routes }) {
   );
 }
 
-function linePoints(values) {
-  const max = Math.max(...values, 1);
-  const min = Math.min(...values, 0);
-  const range = Math.max(max - min, 1);
+function linePoints(values, scale = chartScale(values)) {
   return values
     .map((value, index) => {
-      const x = index * (320 / 11);
-      const y = 112 - ((value - min) / range) * 88;
+      const x = pointX(index, values.length);
+      const y = pointY(value, scale);
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     })
     .join(' ');
+}
+
+function pointX(index, length) {
+  return length > 1 ? chartLeft + index * ((chartRight - chartLeft) / (length - 1)) : chartLeft + (chartRight - chartLeft) / 2;
+}
+
+function pointY(value, scale) {
+  return chartBottom - ((value - scale.min) / scale.range) * 88;
+}
+
+function chartScale(values) {
+  const max = Math.max(...values, 1);
+  const min = Math.min(...values, 0);
+  return { min, max, range: Math.max(max - min, 1) };
+}
+
+function chartYTicks(scale) {
+  return [scale.max, scale.min + scale.range / 2, scale.min];
+}
+
+function formatCompactNumber(value) {
+  return new Intl.NumberFormat('tr-TR', { notation: 'compact', maximumFractionDigits: 1 }).format(Number(value) || 0);
+}
+
+function chartGridIndexes(length) {
+  const step = length > 16 ? 5 : 1;
+  return Array.from({ length }, (_, index) => index).filter((index) => index === 0 || index === length - 1 || index % step === 0);
+}
+
+function chartLabelIndexes(length) {
+  const step = length > 16 ? 4 : 1;
+  return Array.from({ length }, (_, index) => index).filter((index) => index === 0 || index === length - 1 || (index + 1) % step === 0);
+}
+
+function createDailySeries(trips, yearFilter, monthFilter) {
+  const month = Number(monthFilter) - 1;
+  const year = Number(yearFilter) || new Date().getFullYear();
+  const dayCount = Number.isFinite(month) && month >= 0 && month <= 11 ? new Date(year, month + 1, 0).getDate() : 30;
+  const rows = Array.from({ length: dayCount }, (_, index) => ({ label: String(index + 1), km: 0, masraf: 0 }));
+
+  trips.forEach((trip) => {
+    const date = new Date(trip.date);
+    if (Number.isNaN(date.getTime())) return;
+    const dayIndex = date.getDate() - 1;
+    if (!rows[dayIndex]) return;
+    rows[dayIndex].km += Number.parseFloat(trip.distanceKm) || 0;
+    rows[dayIndex].masraf += Number.parseFloat(trip.totalCost) || 0;
+  });
+
+  const visibleRows = rows.filter((row) => row.km > 0 || row.masraf > 0);
+  const chartRows = visibleRows.length ? visibleRows : [{ label: '-', km: 0, masraf: 0 }];
+
+  return {
+    labels: chartRows.map((row) => row.label),
+    km: chartRows.map((row) => row.km),
+    masraf: chartRows.map((row) => row.masraf),
+    kmTitle: 'Günlere Göre Km',
+    masrafTitle: 'Günlere Göre Masraf',
+  };
 }

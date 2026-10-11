@@ -1,4 +1,6 @@
 // Türkiye il ziyaret haritası: şehir bazlı gidildi bilgisi ve kişisel notları yönetir.
+import 'leaflet/dist/leaflet.css';
+import '../config/leafletIcons.js';
 import { CheckCircle2, Circle, MapPinned, Search, StickyNote, XCircle } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { GeoJSON, MapContainer, TileLayer, Tooltip, useMap } from 'react-leaflet';

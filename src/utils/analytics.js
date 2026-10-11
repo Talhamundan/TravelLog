@@ -133,7 +133,10 @@ export const vehicleStats = (trips, vehicle) => {
   return { ...summarizeGroup(plate || name || '-', rows), trips: rows };
 };
 
-export const companyStats = (trips, company) => summarizeGroup(company?.name || '-', trips.filter((trip) => trip.company === company?.name));
+export const companyStats = (trips, company) => {
+  const rows = trips.filter((trip) => trip.company === company?.name);
+  return { ...summarizeGroup(company?.name || '-', rows), trips: rows };
+};
 
 export const getTotalDistance = (trips = []) => sumBy(trips, 'distanceKm');
 

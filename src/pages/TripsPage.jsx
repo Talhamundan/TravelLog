@@ -1,5 +1,5 @@
 // Seyahatleri filtrelenebilir tablo halinde listeler ve aksiyonları dışarıya iletir.
-import { Download, Eye, FileSpreadsheet, Filter, Pencil, RotateCcw, Search, SlidersHorizontal, Trash2, Upload, X } from 'lucide-react';
+import { CalendarDays, Car, Download, Eye, FileSpreadsheet, Filter, MapPinned, Pencil, ReceiptText, RotateCcw, Search, SlidersHorizontal, Trash2, Upload, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import EmptyState from '../components/EmptyState';
 import TravelMap, { defaultDashboardMapFilters, matchesTravelMapFilters } from '../components/TravelMap';
@@ -37,6 +37,7 @@ export default function TripsPage({ trips, onEdit, onDelete, onDetail, onNewTrip
   const [importState, setImportState] = useState({ open: false, loading: false, message: '' });
   const [selectedMapTripId, setSelectedMapTripId] = useState('');
   const [mapFilters, setMapFilters] = useState(defaultDashboardMapFilters);
+  const filterPanelRef = useRef(null);
   const mapPanelRef = useRef(null);
 
   const transportTypes = useMemo(() => [...new Set(trips.map((trip) => normalizeTransportType(trip.transportType)).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr')), [trips]);
@@ -105,12 +106,20 @@ export default function TripsPage({ trips, onEdit, onDelete, onDetail, onNewTrip
 
   const filteredKm = sumBy(filteredTrips, 'distanceKm');
   const filteredCost = sumBy(filteredTrips, 'totalCost');
+  const routeAnalysis = useMemo(() => buildRouteRepeatAnalytics(filteredTrips), [filteredTrips]);
   const activeFilterCount = Object.values(filters).filter(Boolean).length;
   const selectedMapTrip = filteredTrips.find((trip) => trip.id === selectedMapTripId) || null;
   const selectedRouteUsage = selectedMapTrip ? filteredTrips.filter((trip) => getTripRouteTitle(trip) === getTripRouteTitle(selectedMapTrip)).length : 0;
   const mapTrips = selectedMapTrip ? [selectedMapTrip] : baseFilteredTrips;
-  const resetFilters = () => setFilters(initialFilters);
+  const resetFilters = () => {
+    setFilters(initialFilters);
+    setAdvancedOpen(false);
+  };
   const updateFilter = (key, value) => setFilters((current) => ({ ...current, [key]: value }));
+  const applyPreset = (preset) => {
+    setFilters((current) => ({ ...initialFilters, ...preset(current) }));
+    setAdvancedOpen(false);
+  };
   const selectTripOnMap = (trip) => {
     setSelectedMapTripId(trip.id);
     const rect = mapPanelRef.current?.getBoundingClientRect();
@@ -122,6 +131,22 @@ export default function TripsPage({ trips, onEdit, onDelete, onDetail, onNewTrip
   useEffect(() => {
     if (selectedMapTripId && !filteredTrips.some((trip) => trip.id === selectedMapTripId)) setSelectedMapTripId('');
   }, [filteredTrips, selectedMapTripId]);
+
+  useEffect(() => {
+    if (!advancedOpen) return undefined;
+    const handlePointerDown = (event) => {
+      if (!filterPanelRef.current?.contains(event.target)) setAdvancedOpen(false);
+    };
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setAdvancedOpen(false);
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [advancedOpen]);
 
   const handleImportFile = async (event) => {
     const file = event.target.files?.[0];
@@ -175,7 +200,15 @@ export default function TripsPage({ trips, onEdit, onDelete, onDetail, onNewTrip
 
       {!trips.length && <EmptyState onPrimary={onNewTrip} onSeed={onSeed} />}
 
-      <section className="trips-filter-bar">
+      <section className="trips-filter-bar" ref={filterPanelRef}>
+        <div className="smart-filter-presets" aria-label="Akıllı filtre presetleri">
+          {buildSmartFilterPresets().map((preset) => (
+            <button type="button" key={preset.id} onClick={() => applyPreset(preset.filters)}>
+              {preset.icon}
+              {preset.label}
+            </button>
+          ))}
+        </div>
         <div className="trips-filter-primary">
           <label className="trips-search">
             <Search size={18} />
@@ -196,7 +229,7 @@ export default function TripsPage({ trips, onEdit, onDelete, onDetail, onNewTrip
             options={['', ...companies].map((value) => ({ value, label: value || 'Tüm firmalar' }))}
             onChange={(value) => updateFilter('company', value)}
           />
-          <button type="button" className={`filter-toggle ${advancedOpen ? 'active' : ''}`} onClick={() => setAdvancedOpen((value) => !value)}>
+          <button type="button" className={`filter-toggle ${advancedOpen ? 'active' : ''}`} aria-expanded={advancedOpen} onClick={() => setAdvancedOpen((value) => !value)}>
             <SlidersHorizontal size={17} />
             Detaylı Filtre
             {activeFilterCount > 0 && <b>{activeFilterCount}</b>}
@@ -225,6 +258,12 @@ export default function TripsPage({ trips, onEdit, onDelete, onDetail, onNewTrip
 
         {advancedOpen && (
           <div className="trips-advanced-filters">
+            <div className="advanced-filter-head">
+              <strong>Detaylı Filtre</strong>
+              <button type="button" onClick={() => setAdvancedOpen(false)} aria-label="Detaylı filtreyi kapat">
+                <X size={15} />
+              </button>
+            </div>
             <label>
               <span>Tarih başlangıç</span>
               <input type="date" value={filters.fromDate} onChange={(event) => updateFilter('fromDate', event.target.value)} />
@@ -269,10 +308,23 @@ export default function TripsPage({ trips, onEdit, onDelete, onDetail, onNewTrip
         )}
       </section>
       {trips.length > 0 && (
-        <section className="filter-summary">
-          <strong>{filteredTrips.length} kayıt</strong>
-          <span>Filtrelenmiş km: {formatKm(filteredKm)}</span>
-          <span>Filtrelenmiş masraf: {formatCurrency(filteredCost)}</span>
+        <section className="panel route-repeat-panel">
+          <div className="panel-heading">
+            <div>
+              <h2>Sık Rotalar</h2>
+              <span>Filtrelenen seyahatlerde en çok tekrar eden rotalar.</span>
+            </div>
+            <MapPinned size={20} />
+          </div>
+          <div className="route-repeat-grid">
+            {routeAnalysis.length ? routeAnalysis.slice(0, 3).map((route) => (
+              <button type="button" key={route.name} className="route-repeat-card" onClick={() => updateFilter('search', route.name)}>
+                <span>{route.count} kez</span>
+                <strong>{route.name}</strong>
+                <small>{formatKm(route.km)} · {formatCurrency(route.averageCost)} ort.</small>
+              </button>
+            )) : <p className="empty-inline">Bu filtrede rota tekrarı yok.</p>}
+          </div>
         </section>
       )}
 
@@ -371,6 +423,11 @@ export default function TripsPage({ trips, onEdit, onDelete, onDetail, onNewTrip
             </tbody>
           </table>
         </div>
+        <div className="filter-summary table-filter-summary">
+          <strong>{filteredTrips.length} kayıt</strong>
+          <span>Filtrelenmiş km: {formatKm(filteredKm)}</span>
+          <span>Filtrelenmiş masraf: {formatCurrency(filteredCost)}</span>
+        </div>
       </section>
       )}
     </div>
@@ -398,4 +455,40 @@ function filterLabel(key, value) {
     maxCost: 'Max maliyet',
   };
   return `${labels[key] || key}: ${value}`;
+}
+
+function buildSmartFilterPresets() {
+  const now = new Date();
+  const year = String(now.getFullYear());
+  const month = String(now.getMonth() + 1);
+  return [
+    { id: 'this-month', label: 'Bu ay', icon: <CalendarDays size={15} />, filters: () => ({ year, month }) },
+    { id: 'this-year', label: 'Bu yıl', icon: <CalendarDays size={15} />, filters: () => ({ year }) },
+    { id: 'vehicle-only', label: 'Sadece araç', icon: <Car size={15} />, filters: () => ({ transportType: 'Araç' }) },
+    { id: 'costly', label: 'Masraflı seyahatler', icon: <ReceiptText size={15} />, filters: () => ({ minCost: '1' }) },
+    { id: 'istanbul', label: 'İstanbul çıkışlılar', icon: <MapPinned size={15} />, filters: () => ({ from: 'İstanbul' }) },
+  ];
+}
+
+function buildRouteRepeatAnalytics(trips = []) {
+  return Object.values(
+    trips.reduce((acc, trip) => {
+      const name = getTripRouteTitle(trip);
+      const date = new Date(trip.date);
+      acc[name] ||= { name, count: 0, km: 0, cost: 0, lastTime: 0 };
+      acc[name].count += 1;
+      acc[name].km += toNumber(trip.distanceKm);
+      acc[name].cost += toNumber(trip.totalCost);
+      if (!Number.isNaN(date.getTime())) acc[name].lastTime = Math.max(acc[name].lastTime, date.getTime());
+      return acc;
+    }, {}),
+  )
+    .map((item) => ({
+      ...item,
+      averageCost: item.count ? item.cost / item.count : 0,
+      averageCostPerKm: item.km ? item.cost / item.km : 0,
+      lastDate: item.lastTime ? formatDate(new Date(item.lastTime).toISOString()) : '-',
+    }))
+    .sort((a, b) => b.count - a.count || b.cost - a.cost)
+    .slice(0, 6);
 }

@@ -1,8 +1,8 @@
 export default {
   id: 'minimal',
   label: 'Minimal',
-  tileUrl: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png',
-  attribution: '&copy; OpenStreetMap &copy; CARTO',
+  tileUrl: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  attribution: '&copy; OpenStreetMap contributors',
   routeOpacity: 0.72,
   routeWeight: 3,
   markerTone: 'minimal',

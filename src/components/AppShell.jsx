@@ -1,6 +1,6 @@
 // Sol menülü admin panel kabuğu ve seyahat detay modalını içerir.
 import { Bell, CalendarDays, Expand, Menu, Moon, PlaneTakeoff, Search, Sparkles, Sun, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createStats } from '../utils/analytics';
 import { formatCurrency, formatDate, formatKm, monthName } from '../utils/formatters';
 import { getTripRouteTitle } from '../utils/routeDisplay';
@@ -43,6 +43,7 @@ export default function AppShell({
     return localStorage.getItem('travellog:sidebarOpen') !== 'false';
   });
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const notificationPopoverRef = useRef(null);
   const [notificationFilter, setNotificationFilter] = useState('Tümü');
   const [readNotifications, setReadNotifications] = useState(() => {
     try {
@@ -71,7 +72,7 @@ export default function AppShell({
   const notifications = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const upcoming = trips
+    const upcoming = allTrips
       .map((trip) => {
         const date = new Date(trip.date);
         if (Number.isNaN(date.getTime())) return null;
@@ -112,16 +113,20 @@ export default function AppShell({
       })
       .filter(Boolean)
       .flat();
-    return upcoming.length ? upcoming : [{
-      id: 'system-summary',
-      category: 'Seyahat',
-      title: 'Planlayıcı hazır',
-      text: `${trips.length} seyahat, ${vehicles.length} araç, ${companies.length} firma kayıtlı.`,
+    if (upcoming.length) return upcoming;
+    return [{
+      id: allTrips.length ? 'system-no-upcoming' : 'system-summary',
+      category: 'Hatırlatma',
+      title: allTrips.length ? 'Yaklaşan bildirim yok' : 'Planlayıcı hazır',
+      text: allTrips.length
+        ? 'Önümüzdeki 14 gün için hatırlatma bulunmuyor.'
+        : `${allTrips.length} seyahat, ${vehicles.length} araç, ${companies.length} firma kayıtlı.`,
       time: 'şimdi',
+      system: true,
     }];
-  }, [trips, vehicles, companies]);
+  }, [allTrips, vehicles, companies]);
   const visibleNotifications = notifications.filter((item) => notificationFilter === 'Tümü' || item.category === notificationFilter);
-  const unreadCount = notifications.filter((item) => !readNotifications.includes(item.id)).length;
+  const unreadCount = notifications.filter((item) => !item.system && !readNotifications.includes(item.id)).length;
   const monthOptions = useMemo(
     () => Array.from({ length: 12 }, (_, index) => ({ value: String(index + 1), label: monthName(index) })),
     [],
@@ -130,6 +135,15 @@ export default function AppShell({
   useEffect(() => {
     localStorage.setItem('travellog:readNotifications', JSON.stringify(readNotifications));
   }, [readNotifications]);
+
+  useEffect(() => {
+    if (!notificationsOpen) return undefined;
+    const closeOnOutsideClick = (event) => {
+      if (!notificationPopoverRef.current?.contains(event.target)) setNotificationsOpen(false);
+    };
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    return () => document.removeEventListener('pointerdown', closeOnOutsideClick);
+  }, [notificationsOpen]);
 
   useEffect(() => {
     if (isMobileSidebarViewport()) return;
@@ -305,7 +319,7 @@ export default function AppShell({
                 ))}
               </select>
             </label>
-            <div className="topbar-popover-wrap">
+            <div className="topbar-popover-wrap" ref={notificationPopoverRef}>
               <button className="icon-button has-badge" title="Bildirimler" onClick={() => setNotificationsOpen((value) => !value)}>
                 <Bell size={18} />
                 {unreadCount > 0 && <span>{unreadCount}</span>}
@@ -314,7 +328,7 @@ export default function AppShell({
                 <section className="topbar-popover notification-center">
                   <div className="notification-head">
                     <h3>Bildirimler</h3>
-                    <button type="button" onClick={() => navigate('planner')}>Tümünü Gör</button>
+                    <button type="button" onClick={() => { setNotificationsOpen(false); navigate('planner'); }}>Tümünü Gör</button>
                   </div>
                   <div className="notification-filters">
                     {['Tümü', 'Seyahat', 'Hatırlatma', 'Checklist', 'Rezervasyon'].map((category) => (
@@ -332,6 +346,15 @@ export default function AppShell({
                       <small>{item.time}</small>
                     </article>
                   ))}
+                  {!visibleNotifications.length && (
+                    <article className="read">
+                      <div>
+                        <strong>Bu filtrede bildirim yok</strong>
+                        <p>Başka bir bildirim türü seçin veya planlayıcıdan yeni seyahat ekleyin.</p>
+                      </div>
+                      <small>-</small>
+                    </article>
+                  )}
                 </section>
               )}
             </div>

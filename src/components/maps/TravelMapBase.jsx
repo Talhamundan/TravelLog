@@ -1,3 +1,5 @@
+import 'leaflet/dist/leaflet.css';
+import '../../config/leafletIcons.js';
 import { useEffect, useRef } from 'react';
 import { MapContainer, Marker, Polyline, Popup, TileLayer, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import { AlertTriangle } from 'lucide-react';

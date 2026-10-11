@@ -106,6 +106,9 @@ export const filterExpenses = (expenses = [], filters = {}) => {
     const cityText = String(expense.city || '').toLocaleLowerCase('tr-TR');
     if (start && date < start) return false;
     if (end && date > end) return false;
+    if (filters.quick === 'ticket' && !['Uçak', 'Otobüs', 'Tren', 'Feribot'].includes(expense.category)) return false;
+    if (filters.quick === 'road' && expense.category !== 'Yol/Köprü') return false;
+    if (filters.quick === 'hotel' && expense.category !== 'Konaklama') return false;
     if (filters.category && expense.category !== filters.category) return false;
     if (filters.transportType && expense.transportType !== filters.transportType) return false;
     if (filters.company && expense.company !== filters.company) return false;
@@ -137,8 +140,10 @@ export const buildExpenseFilterOptions = (expenses = []) => ({
   cities: [...new Set(expenses.map((expense) => expense.city).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr')),
 });
 
-export const buildExpenseAnalytics = (expenses = [], trips = []) => {
+export const buildExpenseAnalytics = (expenses = [], trips = [], period = {}) => {
   const now = new Date();
+  const periodYear = Number(period.yearFilter) || now.getFullYear();
+  const periodMonth = Number(period.monthFilter);
   const thisMonth = expenses.filter((expense) => {
     const date = normalizeExpenseDate(expense);
     return date && date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
@@ -155,16 +160,16 @@ export const buildExpenseAnalytics = (expenses = [], trips = []) => {
   const maxExpense = expenses.reduce((max, expense) => (expense.amount > (max?.amount || 0) ? expense : max), null);
   const averageTrip = trips.length ? sum(trips, tripTotalCost) / trips.length : 0;
   const ticketTotal = sum(expenses.filter((expense) => ['Uçak', 'Otobüs', 'Tren', 'Feribot'].includes(expense.category)));
+  const vehicleTrips = trips.filter((trip) => normalizeTransportType(trip.transportType) === 'Araç');
+  const vehicleKm = sum(vehicleTrips, (trip) => trip.distanceKm);
+  const fuelTotal = sum(expenses.filter((expense) => expense.category === 'Yakıt'));
+  const roadTotal = sum(expenses.filter((expense) => expense.category === 'Yol/Köprü'));
+  const averageRouteKm = trips.length ? totalKm / trips.length : 0;
+  const fuelPerKm = vehicleKm ? fuelTotal / vehicleKm : 0;
+  const roadPerKm = vehicleKm ? roadTotal / vehicleKm : totalKm ? roadTotal / totalKm : 0;
+  const assumedFuelPrice = 45;
 
-  const monthly = Array.from({ length: 12 }, (_, month) => ({
-    name: monthName(month),
-    value: sum(
-      expenses.filter((expense) => {
-        const date = normalizeExpenseDate(expense);
-        return date && date.getFullYear() === now.getFullYear() && date.getMonth() === month;
-      }),
-    ),
-  }));
+  const periodSeries = periodMonth ? buildDailyExpenseSeries(expenses, periodYear, periodMonth) : buildMonthlyExpenseSeries(expenses, periodYear, Boolean(period.yearFilter));
 
   const category = groupSum(expenses, (expense) => expense.category).map((item) => ({
     ...item,
@@ -196,7 +201,7 @@ export const buildExpenseAnalytics = (expenses = [], trips = []) => {
 
   const expensiveTransport = transport[0];
   const economicTransport = transportKm.filter((item) => item.km > 0).sort((a, b) => a.cost / a.km - b.cost / b.km)[0];
-  const expensiveMonth = monthly.slice().sort((a, b) => b.value - a.value)[0];
+  const expensivePeriod = periodSeries.rows.slice().sort((a, b) => b.value - a.value)[0];
 
   return {
     kpis: [
@@ -205,17 +210,71 @@ export const buildExpenseAnalytics = (expenses = [], trips = []) => {
       { label: 'Km Başı Maliyet', value: formatCurrency(totalKm ? total / totalKm : 0), change: formatKm(totalKm), tone: 'cyan' },
       { label: 'En Yüksek Tek Masraf', value: formatCurrency(maxExpense?.amount || 0), change: maxExpense?.description || '-', tone: 'pink' },
       { label: 'Ort. Seyahat Maliyeti', value: formatCurrency(averageTrip), change: `${trips.length} seyahat`, tone: 'purple' },
-      { label: 'Yakıt Toplamı', value: formatCurrency(sum(expenses.filter((expense) => expense.category === 'Yakıt'))), change: 'Araç giderleri', tone: 'amber' },
+      { label: 'Yakıt Toplamı', value: formatCurrency(fuelTotal), change: 'Araç giderleri', tone: 'amber' },
       { label: 'Bilet Toplamı', value: formatCurrency(ticketTotal), change: 'Uçak/otobüs/tren', tone: 'indigo' },
-      { label: 'Yol/Köprü Toplamı', value: formatCurrency(sum(expenses.filter((expense) => expense.category === 'Yol/Köprü'))), change: 'Otoyol + köprü', tone: 'orange' },
+      { label: 'Yol/Köprü Toplamı', value: formatCurrency(roadTotal), change: 'Otoyol + köprü', tone: 'orange' },
     ],
-    charts: { category, monthly, transport, company: company.slice(0, 8), city },
+    charts: { category, monthly: periodSeries.rows, periodTitle: periodSeries.title, transport, company: company.slice(0, 8), city },
+    intelligence: [
+      {
+        label: 'Gidilecek rota yakıt tahmini',
+        value: fuelPerKm ? formatCurrency(fuelPerKm * Math.max(averageRouteKm, 1)) : '-',
+        detail: averageRouteKm ? `${formatKm(averageRouteKm)} ortalama rota için geçmiş yakıt/km bazlı` : 'Araç km verisi bekleniyor',
+      },
+      {
+        label: 'Otoyol/köprü tahmini',
+        value: roadPerKm ? formatCurrency(roadPerKm * Math.max(averageRouteKm, 1)) : '-',
+        detail: 'Geçmiş yol/köprü masrafının km ortalaması',
+      },
+      {
+        label: 'Ortalama yakıt tüketimi',
+        value: fuelPerKm ? `${((fuelPerKm / assumedFuelPrice) * 100).toLocaleString('tr-TR', { maximumFractionDigits: 1 })} lt/100 km` : '-',
+        detail: `${formatCurrency(assumedFuelPrice)}/lt varsayımıyla hesaplanır`,
+      },
+      {
+        label: 'Rota başı ortalama masraf',
+        value: trips.length ? formatCurrency(total / trips.length) : '-',
+        detail: `${trips.length} seyahat ve ${expenses.length} masraf kaleminden`,
+      },
+    ],
     insights: [
       { label: 'Bu yıl en pahalı ulaşım türü', value: expensiveTransport ? `${expensiveTransport.name} · ${formatCurrency(expensiveTransport.value)}` : '-' },
       { label: 'En maliyetli rota', value: routeCost[0] ? `${routeCost[0].name} · ${formatCurrency(routeCost[0].value)}` : '-' },
-      { label: 'En fazla masraf yapılan ay', value: expensiveMonth ? `${expensiveMonth.name} · ${formatCurrency(expensiveMonth.value)}` : '-' },
+      { label: 'En fazla masraf yapılan dönem', value: expensivePeriod ? `${expensivePeriod.name} · ${formatCurrency(expensivePeriod.value)}` : '-' },
       { label: 'En ekonomik ulaşım türü', value: economicTransport ? `${economicTransport.name} · ${formatCurrency(economicTransport.cost / Math.max(economicTransport.km, 1))}/km` : '-' },
       { label: 'Km başı en pahalı rota', value: routeKmCost[0] ? `${routeKmCost[0].name} · ${formatCurrency(routeKmCost[0].cost / Math.max(routeKmCost[0].km, 1))}/km` : '-' },
     ],
   };
 };
+
+function buildMonthlyExpenseSeries(expenses, year, restrictToYear) {
+  return {
+    title: 'Aylara Göre Masraf',
+    rows: Array.from({ length: 12 }, (_, month) => ({
+      name: monthName(month),
+      value: sum(
+        expenses.filter((expense) => {
+          const date = normalizeExpenseDate(expense);
+          return date && (!restrictToYear || date.getFullYear() === year) && date.getMonth() === month;
+        }),
+      ),
+    })),
+  };
+}
+
+function buildDailyExpenseSeries(expenses, year, month) {
+  const monthIndex = month - 1;
+  const dayCount = monthIndex >= 0 && monthIndex <= 11 ? new Date(year, monthIndex + 1, 0).getDate() : 31;
+  return {
+    title: 'Günlere Göre Masraf',
+    rows: Array.from({ length: dayCount }, (_, index) => ({
+      name: String(index + 1),
+      value: sum(
+        expenses.filter((expense) => {
+          const date = normalizeExpenseDate(expense);
+          return date && date.getFullYear() === year && date.getMonth() === monthIndex && date.getDate() === index + 1;
+        }),
+      ),
+    })),
+  };
+}

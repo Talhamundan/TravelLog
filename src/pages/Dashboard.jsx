@@ -35,9 +35,16 @@ export default function Dashboard({ trips, allTrips = trips, yearFilter = '', mo
     }));
   }, [dashboardTransportTypes]);
 
+  if (!trips.length) {
+    return (
+      <div className="page-stack">
+        <EmptyState onPrimary={onNewTrip} onSeed={onSeed} />
+      </div>
+    );
+  }
+
   return (
     <div className="page-stack">
-      {!trips.length && <EmptyState onPrimary={onNewTrip} onSeed={onSeed} />}
       <div className="stat-grid hero-stat-grid">
         <StatCard label="Seyahat" value={stats.totalTrips} icon={BriefcaseBusiness} {...trendProps(stats.totalTrips, comparisonStats.totalTrips, comparisonLabel)} tone="blue" />
         <StatCard label="Toplam Km" value={formatKm(stats.totalKm)} icon={Route} {...trendProps(stats.totalKm, comparisonStats.totalKm, comparisonLabel)} tone="indigo" />
@@ -45,9 +52,7 @@ export default function Dashboard({ trips, allTrips = trips, yearFilter = '', mo
         <StatCard label="Ortalama Km" value={formatKm(stats.averageTripKm)} icon={Gauge} {...trendProps(stats.averageTripKm, comparisonStats.averageTripKm, comparisonLabel, `Seyahat başına · ${periodLabel}`)} tone="cyan" />
         <StatCard label="Ortalama Masraf" value={formatCurrency(averageTripCost(stats))} icon={Banknote} {...trendProps(averageTripCost(stats), averageTripCost(comparisonStats), comparisonLabel, `Seyahat başına · ${periodLabel}`)} tone="amber" />
       </div>
-      {trips.length > 0 && (
-        <>
-          <section className="panel pro-panel featured-map">
+      <section className="panel pro-panel featured-map">
             {selectedTrip && (
               <div className="trips-map-selection dashboard-map-selection">
                 <div>
@@ -71,7 +76,7 @@ export default function Dashboard({ trips, allTrips = trips, yearFilter = '', mo
             </Suspense>
           </section>
           <div className="dashboard-chart-strip">
-            <DashboardCharts trips={filteredTrips} />
+            <DashboardCharts trips={filteredTrips} yearFilter={yearFilter} monthFilter={monthFilter} />
           </div>
           <div className="dashboard-grid">
             <section className="panel pro-panel recent-table-panel">
@@ -132,8 +137,6 @@ export default function Dashboard({ trips, allTrips = trips, yearFilter = '', mo
               </button>
             </aside>
           </div>
-        </>
-      )}
     </div>
   );
 }

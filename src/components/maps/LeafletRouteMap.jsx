@@ -1,3 +1,5 @@
+import 'leaflet/dist/leaflet.css';
+import '../../config/leafletIcons.js';
 import { Fragment, useEffect, useMemo, useRef } from 'react';
 import { CircleMarker, MapContainer, Marker, Polyline, Popup, TileLayer, Tooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
@@ -10,9 +12,9 @@ import { getLocationLabel, getTripPopupTitle } from '../../utils/routeDisplay';
 import { normalizeTransportType } from '../../constants/transport';
 
 const tiles = {
-  dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-  light: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-  minimal: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png',
+  dark: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  light: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  minimal: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
 };
 
 export default function LeafletRouteMap({ trips = [], trip, routePreview, theme = 'dark', className = '', onRouteSelect, onRouteFocus, selectedTripId = '', animate = false }) {
@@ -20,10 +22,19 @@ export default function LeafletRouteMap({ trips = [], trip, routePreview, theme 
   const allPoints = routeItems.flatMap((item) => item.points || []);
   if (!routeItems.length) {
     return (
-      <div className={`travel-map-empty ${className}`}>
-        <strong>Harita önizlemesi hazır değil</strong>
-        <span>OpenStreetMap rotası için başlangıç ve varış seçin.</span>
-      </div>
+      <MapContainer
+        center={defaultTurkeyCenter}
+        zoom={5.5}
+        zoomSnap={0.5}
+        zoomDelta={0.5}
+        wheelPxPerZoomLevel={180}
+        wheelDebounceTime={90}
+        className={`trip-map osm-route-map leaflet-route-map map-theme-${theme} ${className}`}
+        scrollWheelZoom
+      >
+        <TileLayer attribution="&copy; OpenStreetMap contributors" url={tiles[theme] || tiles.dark} />
+        <FitBounds points={[]} />
+      </MapContainer>
     );
   }
 
@@ -38,7 +49,7 @@ export default function LeafletRouteMap({ trips = [], trip, routePreview, theme 
       className={`trip-map osm-route-map leaflet-route-map map-theme-${theme} ${className}`}
       scrollWheelZoom
     >
-      <TileLayer attribution="&copy; OpenStreetMap &copy; CARTO" url={tiles[theme] || tiles.dark} />
+      <TileLayer attribution="&copy; OpenStreetMap contributors" url={tiles[theme] || tiles.dark} />
       <FitBounds points={allPoints} />
       {routeItems.map((item) => (
         <RouteLayer key={item.id} item={item} onRouteSelect={onRouteSelect} onRouteFocus={onRouteFocus} selectedTripId={selectedTripId} animate={animate} />
@@ -218,12 +229,15 @@ function tripToRouteItem(trip) {
 }
 
 function normalizeRoutePreview(routePreview) {
+  const points = routePreview.points?.length
+    ? routePreview.points
+    : [routePreview.origin, ...(routePreview.waypoints || []), routePreview.destination].filter(Boolean);
   return {
     ...routePreview,
-    origin: routePreview.origin || routePreview.points?.[0] || null,
-    destination: routePreview.destination || routePreview.points?.at(-1) || null,
+    origin: routePreview.origin || points?.[0] || null,
+    destination: routePreview.destination || (points.length >= 2 ? points.at(-1) : null),
     waypoints: routePreview.waypoints || [],
-    points: routePreview.points || [],
+    points,
     transportType: normalizeTransportType(routePreview.transportType),
   };
 }

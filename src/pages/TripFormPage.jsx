@@ -1,6 +1,6 @@
 // Yeni seyahat kaydını adım adım ilerleyen, seçilen ulaşım türüne göre sadeleşen wizard olarak yönetir.
 import { ArrowLeft, ArrowRight, Bus, Car, Check, CircleHelp, Plane, Repeat2, Save, Train, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import TripPreviewMap from '../components/maps/TripPreviewMap';
 import CustomSelect from '../components/ui/CustomSelect';
 import OsmPlaceInput from '../components/ui/OsmPlaceInput';
@@ -30,6 +30,13 @@ const transportCards = [
   { type: 'Diğer', icon: CircleHelp, title: 'Diğer', desc: 'Diğer ulaşım türleri', meta: 'Gemi, feribot, vb.' },
 ];
 
+const scrollTripWizardToTop = () => {
+  window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  document.scrollingElement?.scrollTo?.({ top: 0, left: 0, behavior: 'auto' });
+  document.querySelector('.main-area')?.scrollTo?.({ top: 0, left: 0, behavior: 'auto' });
+  document.querySelector('.content')?.scrollTo?.({ top: 0, left: 0, behavior: 'auto' });
+};
+
 export default function TripFormPage({ initialTrip, companies, vehicles, trips = [], savedLocations = [], onSave, onCancel }) {
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -39,12 +46,24 @@ export default function TripFormPage({ initialTrip, companies, vehicles, trips =
   const [form, setForm] = useState(() => createInitialForm(initialTrip));
   const [routeEstimate, setRouteEstimate] = useState({ distanceKm: 0, durationMinutes: 0, source: '' });
   const [routeError, setRouteError] = useState('');
+  const didMountStepRef = useRef(false);
 
   useEffect(() => {
     setForm(createInitialForm(initialTrip));
     setStep(0);
     setManualFuelCost(Boolean(initialTrip?.fuelCostManuallyEdited));
   }, [initialTrip]);
+
+  useEffect(() => {
+    if (!didMountStepRef.current) {
+      didMountStepRef.current = true;
+      return undefined;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      scrollTripWizardToTop();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [step]);
 
   const autoDistance = useMemo(
     () => routeEstimate.distanceKm || estimateTravelDistance(form.fromLocation, form.toLocation, form.transportType),
@@ -364,7 +383,6 @@ function DetailsStep({ form, update, companies, vehicles, trips, setManualFuelCo
     update('plate', formatPlate(vehicle.plate || ''));
     update('fuelType', vehicle.fuelType || form.fuelType);
     update('fuelConsumptionPer100Km', vehicle.fuelConsumptionPer100Km || '');
-    update('fuelUnitPrice', vehicle.fuelUnitPrice || '');
   }, [form.fuelType, form.plate, form.transportType, form.vehicleId, form.vehiclePlate, selectedVehicleId, update, vehicles]);
 
   return (
@@ -384,7 +402,6 @@ function DetailsStep({ form, update, companies, vehicles, trips, setManualFuelCo
                 update('plate', formatPlate(vehicle?.plate || ''));
                 update('fuelType', vehicle?.fuelType || form.fuelType);
                 update('fuelConsumptionPer100Km', vehicle?.fuelConsumptionPer100Km || '');
-                update('fuelUnitPrice', vehicle?.fuelUnitPrice || '');
                 update('fuelCostAutoCalculated', false);
                 update('fuelCostManuallyEdited', false);
                 setManualFuelCost(false);

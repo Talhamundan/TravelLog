@@ -22,7 +22,7 @@ const tooltipStyle = {
 };
 
 export default function ExpenseCharts({ analytics }) {
-  const { category, monthly, transport, company, city } = analytics.charts;
+  const { category, monthly, periodTitle = 'Aylara Göre Masraf', transport, company, city } = analytics.charts;
 
   return (
     <section className="expense-chart-grid">
@@ -50,7 +50,7 @@ export default function ExpenseCharts({ analytics }) {
       </article>
 
       <article className="expense-chart-card wide">
-        <h2>Aylara Göre Masraf</h2>
+        <h2>{periodTitle}</h2>
         <ResponsiveContainer width="100%" height={280}>
           <AreaChart data={monthly}>
             <defs>

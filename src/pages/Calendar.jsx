@@ -21,7 +21,7 @@ const initialFilters = {
   month: '',
 };
 
-export default function CalendarPage({ trips, loading, onNewTrip, onSeed, onEdit, onDetail }) {
+export default function CalendarPage({ trips, dataReady = true, loading, onNewTrip, onSeed, onEdit, onDetail }) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState('month');
   const [filters, setFilters] = useState(initialFilters);
@@ -47,7 +47,7 @@ export default function CalendarPage({ trips, loading, onNewTrip, onSeed, onEdit
     }));
   }, [filterOptions]);
 
-  if (loading && !trips.length) {
+  if ((!dataReady || loading) && !trips.length) {
     return (
       <div className="page-stack calendar-page">
         <CalendarSkeleton />

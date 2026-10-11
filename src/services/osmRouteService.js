@@ -1,5 +1,6 @@
 import { haversineDistanceKm } from '../utils/distance';
 import { getTransportColor, normalizeTransportType } from '../constants/transport';
+import { minutesToDuration } from '../utils/formatters';
 
 export const getRouteColor = (transportType) => getTransportColor(transportType);
 
@@ -25,35 +26,47 @@ export async function geocodeOsmPlace(query) {
   return data.map(normalizeNominatimResult);
 }
 
-export async function getRoute({ origin, destination, waypoints = [], transportType = 'Araç' }) {
+export async function getRoute({ origin, destination, waypoints = [], transportType = 'Araç', alternatives = false }) {
+  const routes = await getRoutes({ origin, destination, waypoints, transportType, alternatives });
+  return routes[0];
+}
+
+export async function getRoutes({ origin, destination, waypoints = [], transportType = 'Araç', alternatives = false }) {
   if (!origin?.lat || !origin?.lng || !destination?.lat || !destination?.lng) {
     throw new Error('Rota için başlangıç ve varış konumu zorunlu.');
   }
 
   const normalizedTransportType = normalizeTransportType(transportType);
   const points = [origin, ...waypoints, destination].filter((point) => point?.lat && point?.lng);
-  if (normalizedTransportType === 'Uçak') return buildAirRoute(points);
+  if (normalizedTransportType === 'Uçak') return [buildAirRoute(points)];
 
   const coordinates = points.map((point) => `${Number(point.lng)},${Number(point.lat)}`).join(';');
   const url = new URL(`https://router.project-osrm.org/route/v1/driving/${coordinates}`);
   url.searchParams.set('overview', 'full');
   url.searchParams.set('geometries', 'geojson');
-  url.searchParams.set('steps', 'false');
+  url.searchParams.set('steps', 'true');
   url.searchParams.set('annotations', 'false');
+  if (alternatives) url.searchParams.set('alternatives', 'true');
 
   const response = await fetch(url);
   if (!response.ok) throw new Error('OSRM rota servisi yanıt vermedi.');
   const data = await response.json();
-  const route = data.routes?.[0];
-  if (!route) throw new Error('OpenStreetMap rotası bulunamadı.');
+  const routes = data.routes || [];
+  if (!routes.length) throw new Error('OpenStreetMap rotası bulunamadı.');
 
+  return routes.map((route, routeIndex) => normalizeOsrmRoute(route, points, waypoints, normalizedTransportType, routeIndex));
+}
+
+function normalizeOsrmRoute(route, points, waypoints, normalizedTransportType, routeIndex = 0) {
   const overviewPath = route.geometry.coordinates.map(([lng, lat]) => ({ lat, lng }));
   return {
+    id: `osrm-${routeIndex + 1}`,
     provider: 'osrm',
     travelMode: getTravelModeByTransportType(normalizedTransportType),
+    routeIndex,
     distanceText: `${(route.distance / 1000).toLocaleString('tr-TR', { maximumFractionDigits: 1 })} km`,
     distanceMeters: Math.round(route.distance),
-    durationText: `${Math.round(route.duration / 60)} dk`,
+    durationText: minutesToDuration(Math.round(route.duration / 60)),
     durationSeconds: Math.round(route.duration),
     overviewPolyline: '',
     overviewPath,
@@ -63,6 +76,14 @@ export async function getRoute({ origin, destination, waypoints = [], transportT
       endAddress: points[index + 1]?.name || points[index + 1]?.formattedAddress || '',
       distanceMeters: Math.round(leg.distance || 0),
       durationSeconds: Math.round(leg.duration || 0),
+      steps: (leg.steps || []).map((step) => ({
+        name: step.name || '',
+        ref: step.ref || '',
+        mode: step.mode || '',
+        drivingSide: step.driving_side || '',
+        distanceMeters: Math.round(step.distance || 0),
+        durationSeconds: Math.round(step.duration || 0),
+      })),
     })),
     waypointOrder: waypoints.map((_, index) => index),
   };
@@ -125,7 +146,7 @@ function buildAirRoute(points) {
     distanceCalculation: 'air_haversine',
     distanceText: `${Math.round(distanceKm).toLocaleString('tr-TR')} km`,
     distanceMeters: Math.round(distanceKm * 1000),
-    durationText: `${durationMinutes} dk`,
+    durationText: minutesToDuration(durationMinutes),
     durationSeconds: durationMinutes * 60,
     overviewPath: points.map((point) => ({ ...point, lat: Number(point.lat), lng: Number(point.lng) })),
     overviewPolyline: '',

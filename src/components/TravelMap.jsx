@@ -1,4 +1,6 @@
 // Dashboard ve Harita sayfası için Leaflet/OpenStreetMap tabanlı rota/konum haritası.
+import 'leaflet/dist/leaflet.css';
+import '../config/leafletIcons.js';
 import { useEffect, useMemo, useState } from 'react';
 import LeafletRouteMap from './maps/LeafletRouteMap';
 import TravelMapBase from './maps/TravelMapBase';

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Download, Filter, Plus, ReceiptText, Sparkles } from 'lucide-react';
+import { BedDouble, Bus, Car, Download, Filter, Fuel, Landmark, Plus, ReceiptText, Sparkles, Utensils } from 'lucide-react';
 import EmptyState from '../components/EmptyState';
 import ExpenseCharts from '../components/expenses/ExpenseCharts';
 import ExpenseSummaryCards from '../components/expenses/ExpenseSummaryCards';
@@ -10,6 +10,7 @@ import {
   buildExpenseFilterOptions,
   buildExpensesFromTrips,
   filterExpenses,
+  normalizeExpenseDate,
 } from '../utils/expenseAnalytics';
 
 const initialFilters = {
@@ -22,13 +23,17 @@ const initialFilters = {
   city: '',
   minAmount: '',
   maxAmount: '',
+  quick: '',
 };
 
 export default function ExpensesPage({
   trips,
   expenses,
+  yearFilter = '',
+  monthFilter = '',
   vehicles,
   loading,
+  dataReady = true,
   onNewTrip,
   onSeed,
   onSaveExpense,
@@ -40,11 +45,13 @@ export default function ExpensesPage({
   const [showFilters, setShowFilters] = useState(true);
 
   const normalizedExpenses = useMemo(() => buildExpensesFromTrips(trips, expenses), [trips, expenses]);
-  const filteredExpenses = useMemo(() => filterExpenses(normalizedExpenses, filters), [normalizedExpenses, filters]);
-  const analytics = useMemo(() => buildExpenseAnalytics(filteredExpenses, trips), [filteredExpenses, trips]);
-  const options = useMemo(() => buildExpenseFilterOptions(normalizedExpenses), [normalizedExpenses]);
+  const periodExpenses = useMemo(() => filterExpensesByPeriod(normalizedExpenses, yearFilter, monthFilter), [monthFilter, normalizedExpenses, yearFilter]);
+  const filteredExpenses = useMemo(() => filterExpenses(periodExpenses, filters), [periodExpenses, filters]);
+  const analytics = useMemo(() => buildExpenseAnalytics(filteredExpenses, trips, { yearFilter, monthFilter }), [filteredExpenses, monthFilter, trips, yearFilter]);
+  const options = useMemo(() => buildExpenseFilterOptions(periodExpenses), [periodExpenses]);
 
   const changeFilter = (key, value) => setFilters((current) => ({ ...current, [key]: value }));
+  const applyExpensePreset = (preset) => setFilters((current) => ({ ...initialFilters, ...preset.filters(current) }));
 
   useEffect(() => {
     setFilters((current) => ({
@@ -57,7 +64,7 @@ export default function ExpensesPage({
     }));
   }, [options]);
 
-  if (loading && !trips.length) {
+  if ((!dataReady || loading) && !trips.length && !expenses.length) {
     return (
       <div className="page-stack expenses-page">
         <section className="page-heading skeleton-block heading-skeleton" />
@@ -102,6 +109,16 @@ export default function ExpensesPage({
       <ExpenseSummaryCards kpis={analytics.kpis} />
       <ExpenseCharts analytics={analytics} />
 
+      <section className="expense-intelligence-grid">
+        {analytics.intelligence.map((item) => (
+          <article className="expense-intelligence-card" key={item.label}>
+            <span>{item.label}</span>
+            <strong>{item.value}</strong>
+            <small>{item.detail}</small>
+          </article>
+        ))}
+      </section>
+
       <section className="expense-filter-panel panel">
         <div className="panel-heading">
           <div>
@@ -114,32 +131,42 @@ export default function ExpensesPage({
           </button>
         </div>
         {showFilters && (
-          <div className="expense-filter-grid">
-            <input type="date" value={filters.startDate} onChange={(event) => changeFilter('startDate', event.target.value)} />
-            <input type="date" value={filters.endDate} onChange={(event) => changeFilter('endDate', event.target.value)} />
-            <select value={filters.category} onChange={(event) => changeFilter('category', event.target.value)}>
-              <option value="">Tüm kategoriler</option>
-              {options.categories.map((item) => <option key={item} value={item}>{item}</option>)}
-            </select>
-            <select value={filters.transportType} onChange={(event) => changeFilter('transportType', event.target.value)}>
-              <option value="">Tüm ulaşım</option>
-              {options.transports.map((item) => <option key={item} value={item}>{item}</option>)}
-            </select>
-            <select value={filters.company} onChange={(event) => changeFilter('company', event.target.value)}>
-              <option value="">Tüm firmalar</option>
-              {options.companies.map((item) => <option key={item} value={item}>{item}</option>)}
-            </select>
-            <select value={filters.vehicle} onChange={(event) => changeFilter('vehicle', event.target.value)}>
-              <option value="">Tüm araçlar</option>
-              {options.vehicles.map((item) => <option key={item} value={item}>{item}</option>)}
-            </select>
-            <select value={filters.city} onChange={(event) => changeFilter('city', event.target.value)}>
-              <option value="">Tüm şehirler</option>
-              {options.cities.map((item) => <option key={item} value={item}>{item}</option>)}
-            </select>
-            <input type="number" placeholder="Min tutar" value={filters.minAmount} onChange={(event) => changeFilter('minAmount', event.target.value)} />
-            <input type="number" placeholder="Max tutar" value={filters.maxAmount} onChange={(event) => changeFilter('maxAmount', event.target.value)} />
-          </div>
+          <>
+            <div className="expense-preset-row" aria-label="Masraf presetleri">
+              {expensePresets.map((preset) => (
+                <button type="button" key={preset.id} className={filters.quick === preset.quick || filters.category === preset.category ? 'active' : ''} onClick={() => applyExpensePreset(preset)}>
+                  {preset.icon}
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+            <div className="expense-filter-grid">
+              <input type="date" value={filters.startDate} onChange={(event) => changeFilter('startDate', event.target.value)} />
+              <input type="date" value={filters.endDate} onChange={(event) => changeFilter('endDate', event.target.value)} />
+              <select value={filters.category} onChange={(event) => setFilters((current) => ({ ...current, quick: '', category: event.target.value }))}>
+                <option value="">Tüm kategoriler</option>
+                {options.categories.map((item) => <option key={item} value={item}>{item}</option>)}
+              </select>
+              <select value={filters.transportType} onChange={(event) => changeFilter('transportType', event.target.value)}>
+                <option value="">Tüm ulaşım</option>
+                {options.transports.map((item) => <option key={item} value={item}>{item}</option>)}
+              </select>
+              <select value={filters.company} onChange={(event) => changeFilter('company', event.target.value)}>
+                <option value="">Tüm firmalar</option>
+                {options.companies.map((item) => <option key={item} value={item}>{item}</option>)}
+              </select>
+              <select value={filters.vehicle} onChange={(event) => changeFilter('vehicle', event.target.value)}>
+                <option value="">Tüm araçlar</option>
+                {options.vehicles.map((item) => <option key={item} value={item}>{item}</option>)}
+              </select>
+              <select value={filters.city} onChange={(event) => changeFilter('city', event.target.value)}>
+                <option value="">Tüm şehirler</option>
+                {options.cities.map((item) => <option key={item} value={item}>{item}</option>)}
+              </select>
+              <input type="number" placeholder="Min tutar" value={filters.minAmount} onChange={(event) => changeFilter('minAmount', event.target.value)} />
+              <input type="number" placeholder="Max tutar" value={filters.maxAmount} onChange={(event) => changeFilter('maxAmount', event.target.value)} />
+            </div>
+          </>
         )}
       </section>
 
@@ -167,4 +194,25 @@ export default function ExpensesPage({
       <NewExpenseModal open={showModal} trips={trips} onClose={() => setShowModal(false)} onSave={onSaveExpense} />
     </div>
   );
+}
+
+const expensePresets = [
+  { id: 'fuel', label: 'Yakıt', category: 'Yakıt', icon: <Fuel size={15} />, filters: () => ({ category: 'Yakıt' }) },
+  { id: 'ticket', label: 'Bilet', quick: 'ticket', icon: <Bus size={15} />, filters: () => ({ quick: 'ticket' }) },
+  { id: 'hotel', label: 'Otel', quick: 'hotel', category: 'Konaklama', icon: <BedDouble size={15} />, filters: () => ({ quick: 'hotel', category: 'Konaklama' }) },
+  { id: 'food', label: 'Yemek', category: 'Yemek', icon: <Utensils size={15} />, filters: () => ({ category: 'Yemek' }) },
+  { id: 'parking', label: 'Otopark', category: 'Otopark', icon: <Car size={15} />, filters: () => ({ category: 'Otopark' }) },
+  { id: 'road', label: 'Köprü/Otoyol', quick: 'road', category: 'Yol/Köprü', icon: <Landmark size={15} />, filters: () => ({ quick: 'road', category: 'Yol/Köprü' }) },
+  { id: 'other', label: 'Diğer', category: 'Diğer', icon: <ReceiptText size={15} />, filters: () => ({ category: 'Diğer' }) },
+];
+
+function filterExpensesByPeriod(expenses = [], yearFilter = '', monthFilter = '') {
+  if (!yearFilter && !monthFilter) return expenses;
+  return expenses.filter((expense) => {
+    const date = normalizeExpenseDate(expense);
+    if (!date) return false;
+    if (yearFilter && date.getFullYear() !== Number(yearFilter)) return false;
+    if (monthFilter && date.getMonth() + 1 !== Number(monthFilter)) return false;
+    return true;
+  });
 }
