@@ -130,7 +130,7 @@ export default function Dashboard({ trips, allTrips = trips, yearFilter = '', mo
               </div>
             </section>
             <aside className="dashboard-side-stack">
-              <MiniCalendar trips={filteredTrips} />
+              <MiniCalendar trips={filteredTrips} yearFilter={yearFilter} monthFilter={monthFilter} />
               <button className="new-trip-cta" onClick={onNewTrip}>
                 Yeni Seyahat Ekle
                 <Plus size={18} />
@@ -212,10 +212,14 @@ function isTripInRange(trip, range) {
   return !Number.isNaN(date.getTime()) && date >= range.start && date <= range.end;
 }
 
-function MiniCalendar({ trips }) {
+function MiniCalendar({ trips, yearFilter, monthFilter }) {
   const today = new Date();
-  const month = today.getMonth();
-  const year = today.getFullYear();
+  const month = monthFilter ? Number(monthFilter) - 1 : today.getMonth();
+  const year = yearFilter ? Number(yearFilter) : today.getFullYear();
+  const monthTitle = new Intl.DateTimeFormat('tr-TR', { month: 'long', year: 'numeric' })
+    .format(new Date(year, month, 1))
+    .replace(/^./, (letter) => letter.toLocaleUpperCase('tr-TR'));
+  const isCurrentMonth = month === today.getMonth() && year === today.getFullYear();
   const tripsByDay = trips.reduce((acc, trip) => {
     const date = new Date(trip.date);
     if (!Number.isNaN(date.getTime()) && date.getMonth() === month && date.getFullYear() === year) {
@@ -233,7 +237,7 @@ function MiniCalendar({ trips }) {
       <div className="panel-heading">
         <h2>Seyahat Takvimi</h2>
       </div>
-      <div className="calendar-title">Mayıs 2026</div>
+      <div className="calendar-title">{monthTitle}</div>
       <div className="calendar-week">
         {['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'].map((day) => <span key={day}>{day}</span>)}
       </div>
@@ -244,7 +248,7 @@ function MiniCalendar({ trips }) {
           return (
             <span
               key={day}
-              className={`${day === today.getDate() ? 'today' : ''} ${dayTrips.length ? 'has-trip' : ''}`}
+              className={`${isCurrentMonth && day === today.getDate() ? 'today' : ''} ${dayTrips.length ? 'has-trip' : ''}`}
               title={dayTrips.map(getTripRouteTitle).join('\n')}
             >
               {day}

@@ -9,7 +9,7 @@ import { estimateDurationByTransport, estimateTravelDistance } from '../utils/di
 import { formatCurrency, formatKm, minutesToDuration } from '../utils/formatters';
 import { findTravelLocation, locationToText } from '../utils/locations';
 import { formatPlate } from '../utils/plateFormatter';
-import { calculateDurationMinutes, calculateTotalCost, toNumber } from '../utils/tripCalculations';
+import { calculateTotalCost, resolveTripDurationMinutes, toNumber } from '../utils/tripCalculations';
 import { getRoute } from '../services/osmRouteService';
 import { getTripWaypoints } from '../utils/tripNormalizers';
 import { compareTripsByNewestDateTime } from '../utils/tripSorting';
@@ -51,6 +51,8 @@ export default function TripFormPage({ initialTrip, companies, vehicles, trips =
   useEffect(() => {
     setForm(createInitialForm(initialTrip));
     setStep(0);
+    setManualDistance(Boolean(initialTrip?.distanceManuallyEdited));
+    setManualDuration(Boolean(initialTrip?.durationManuallyEdited));
     setManualFuelCost(Boolean(initialTrip?.fuelCostManuallyEdited));
   }, [initialTrip]);
 
@@ -71,7 +73,7 @@ export default function TripFormPage({ initialTrip, companies, vehicles, trips =
   );
   const distanceKm = manualDistance ? toNumber(form.distanceKm) : autoDistance || toNumber(form.distanceKm);
   const durationAuto = routeEstimate.durationMinutes || estimateDurationByTransport(distanceKm, form.transportType);
-  const durationMinutes = manualDuration ? toNumber(form.durationMinutes) : calculateDurationMinutes(form.departureTime, form.arrivalTime) || durationAuto || toNumber(form.durationMinutes);
+  const durationMinutes = resolveTripDurationMinutes(form, durationAuto, manualDuration);
   const totalCost = calculateTotalCost({ ...form, distanceKm });
   const costPerKm = distanceKm ? totalCost / distanceKm : 0;
   const missing = getMissingFields(form, step);
@@ -116,12 +118,6 @@ export default function TripFormPage({ initialTrip, companies, vehicles, trips =
       alive = false;
     };
   }, [form.fromLocation, form.toLocation, form.transportType, form.waypoints]);
-
-  useEffect(() => {
-    if (durationAuto && !form.durationMinutes && !manualDuration) {
-      setForm((current) => ({ ...current, durationMinutes: durationAuto }));
-    }
-  }, [durationAuto, form.durationMinutes, manualDuration]);
 
   useEffect(() => {
     const fuelCost = estimateFuelCostFromAverage(form, distanceKm);
@@ -180,7 +176,7 @@ export default function TripFormPage({ initialTrip, companies, vehicles, trips =
       distanceAutoCalculated: Boolean(routeEstimate.route),
       distanceManuallyEdited: manualDistance,
       durationAutoCalculated: Boolean(routeEstimate.route),
-      durationManuallyEdited: manualDuration,
+      durationManuallyEdited: manualDuration && form.durationMinutes !== '',
       distanceSource: routeEstimate.route?.provider || routeEstimate.source || (autoDistance ? 'estimated' : ''),
       distanceCalculation: routeEstimate.route?.distanceCalculation || '',
       totalCost: effectiveTotalCost,
@@ -200,7 +196,9 @@ export default function TripFormPage({ initialTrip, companies, vehicles, trips =
   return (
     <div className="trip-wizard page-stack">
       <WizardStepper step={step} />
-      <TripPreviewMap form={form} distanceKm={distanceKm} durationMinutes={durationMinutes} totalCost={totalCost} routeResult={routeEstimate.route} routeError={routeError} />
+      <TripPreviewMap form={form} routeResult={routeEstimate.route} routeError={routeError}>
+        <LiveTripSummary form={form} distanceKm={distanceKm} durationMinutes={durationMinutes} totalCost={totalCost} costPerKm={costPerKm} embedded />
+      </TripPreviewMap>
       <div className="wizard-layout">
         <section className="panel wizard-card">
           {step === 0 && <TransportTypeStep form={form} update={update} />}
@@ -214,6 +212,7 @@ export default function TripFormPage({ initialTrip, companies, vehicles, trips =
               estimatedFuelCost={estimateFuelCostFromAverage(form, distanceKm)}
               setManualDistance={setManualDistance}
               setManualDuration={setManualDuration}
+              manualDuration={manualDuration}
               setManualFuelCost={setManualFuelCost}
               costPerKm={costPerKm}
               durationMinutes={durationMinutes}
@@ -221,6 +220,9 @@ export default function TripFormPage({ initialTrip, companies, vehicles, trips =
             />
           )}
           {step === 4 && <SummaryStep form={form} distanceKm={distanceKm} durationMinutes={durationMinutes} totalCost={totalCost} costPerKm={costPerKm} missing={getMissingFields(form, 4)} />}
+        </section>
+        <aside className="panel wizard-controls">
+          {step === 0 && <p className="wizard-tip">İpucu: Ulaşım türüne göre sonraki adımlarda sadece ilgili alanlar gösterilir.</p>}
           <div className="wizard-actions">
             <button type="button" className="ghost-button" onClick={step === 0 ? onCancel : back}>
               {step === 0 ? <X size={16} /> : <ArrowLeft size={16} />}
@@ -238,8 +240,7 @@ export default function TripFormPage({ initialTrip, companies, vehicles, trips =
               </button>
             )}
           </div>
-        </section>
-        <LiveTripSummary form={form} distanceKm={distanceKm} durationMinutes={durationMinutes} totalCost={totalCost} costPerKm={costPerKm} missing={missing} />
+        </aside>
       </div>
     </div>
   );
@@ -277,7 +278,6 @@ function TransportTypeStep({ form, update }) {
           );
         })}
       </div>
-      <p className="wizard-tip">İpucu: Ulaşım türüne göre sonraki adımlarda sadece ilgili alanlar gösterilir.</p>
     </>
   );
 }
@@ -445,7 +445,7 @@ function DetailsStep({ form, update, companies, vehicles, trips, setManualFuelCo
   );
 }
 
-function CostStep({ form, update, distanceKm, durationMinutes, estimatedFuelCost, setManualDistance, setManualDuration, setManualFuelCost, costPerKm, routeError }) {
+function CostStep({ form, update, distanceKm, durationMinutes, estimatedFuelCost, setManualDistance, setManualDuration, manualDuration, setManualFuelCost, costPerKm, routeError }) {
   const isCar = form.transportType === 'Araç';
   return (
     <>
@@ -455,7 +455,7 @@ function CostStep({ form, update, distanceKm, durationMinutes, estimatedFuelCost
           <input type="number" min="0" step="0.1" value={form.distanceKm || distanceKm} onChange={(event) => { setManualDistance(true); update('distanceKm', event.target.value); }} />
         </Field>
         <Field label="Süre / dakika">
-          <input type="number" min="0" step="1" value={form.durationMinutes || durationMinutes} onChange={(event) => { setManualDuration(true); update('durationMinutes', event.target.value); }} />
+          <input type="number" min="0" step="1" value={manualDuration ? form.durationMinutes : durationMinutes} onChange={(event) => { setManualDuration(true); update('durationMinutes', event.target.value); }} />
         </Field>
         <Field label="Para birimi"><CustomSelect value={form.currency} options={CURRENCIES} onChange={(value) => update('currency', value)} /></Field>
         {!isCar && <Field label="Bilet fiyatı"><input type="number" min="0" step="0.01" value={form.ticketPrice} onChange={(event) => update('ticketPrice', event.target.value)} /></Field>}
@@ -499,7 +499,7 @@ function SummaryStep(props) {
   );
 }
 
-function LiveTripSummary({ form, distanceKm, durationMinutes, totalCost, costPerKm, missing, embedded = false }) {
+function LiveTripSummary({ form, distanceKm, durationMinutes, totalCost, costPerKm, embedded = false }) {
   return (
     <aside className={embedded ? 'live-summary embedded' : 'panel live-summary'}>
       <h2>Canlı seyahat özeti</h2>
@@ -514,10 +514,6 @@ function LiveTripSummary({ form, distanceKm, durationMinutes, totalCost, costPer
       <SummaryRow label="Toplam masraf" value={formatCurrency(totalCost, form.currency)} />
       <SummaryRow label="Km başı maliyet" value={formatCurrency(costPerKm, form.currency)} />
       <SummaryRow label="Firma / filo" value={form.transportType === 'Araç' ? form.plate || form.vehicleName || '-' : form.company || '-'} />
-      <div className="summary-missing">
-        <strong>Eksik zorunlu alanlar</strong>
-        {missing.length ? missing.map((item) => <span key={item}>{item}</span>) : <span className="ok">Tamam</span>}
-      </div>
     </aside>
   );
 }

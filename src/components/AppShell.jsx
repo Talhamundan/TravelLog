@@ -54,6 +54,7 @@ export default function AppShell({
   });
   const [globalQuery, setGlobalQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
+  const searchContainerRef = useRef(null);
   const [recentSearches, setRecentSearches] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('travellog:recentSearches') || '[]');
@@ -144,6 +145,15 @@ export default function AppShell({
     document.addEventListener('pointerdown', closeOnOutsideClick);
     return () => document.removeEventListener('pointerdown', closeOnOutsideClick);
   }, [notificationsOpen]);
+
+  useEffect(() => {
+    if (!searchOpen) return undefined;
+    const closeOnOutsideClick = (event) => {
+      if (!searchContainerRef.current?.contains(event.target)) setSearchOpen(false);
+    };
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    return () => document.removeEventListener('pointerdown', closeOnOutsideClick);
+  }, [searchOpen]);
 
   useEffect(() => {
     if (isMobileSidebarViewport()) return;
@@ -255,13 +265,19 @@ export default function AppShell({
           <button className="icon-button mobile-only" title={sidebarOpen ? 'Menüyü kapat' : 'Menüyü aç'} onClick={() => setSidebarOpen((value) => !value)}>
             {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
-          <label className="topbar-search">
+          <div
+            className="topbar-search"
+            ref={searchContainerRef}
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget)) setSearchOpen(false);
+            }}
+          >
             <Search size={17} />
             <input
               value={globalQuery}
               onChange={(event) => {
                 setGlobalQuery(event.target.value);
-                setSearchOpen(true);
+                setSearchOpen(Boolean(event.target.value.trim()));
               }}
               onFocus={() => setSearchOpen(true)}
               placeholder="Ara: şehir, firma, PNR, not..."
@@ -297,7 +313,7 @@ export default function AppShell({
                 )}
               </section>
             )}
-          </label>
+          </div>
           <div className="topbar-actions">
             {availableYears.length > 0 && (
               <label className="topbar-year-filter">

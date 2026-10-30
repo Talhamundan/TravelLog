@@ -1,3 +1,4 @@
+import ModifierWheelZoom from '../components/maps/ModifierWheelZoom';
 // Türkiye il ziyaret haritası: şehir bazlı gidildi bilgisi ve kişisel notları yönetir.
 import 'leaflet/dist/leaflet.css';
 import '../config/leafletIcons.js';
@@ -367,6 +368,7 @@ function TurkeyProvinceMap({ provinces, visibleProvinces, entryMap, selectedCode
       className={`trip-map dashboard-map turkey-leaflet-map map-theme-${themeConfig.id}`}
       scrollWheelZoom
     >
+      <ModifierWheelZoom />
       <TileLayer attribution={themeConfig.attribution} url={themeConfig.tileUrl} />
       <TurkeyMapInvalidator />
       <TurkeyMapFocus province={focusMapOnSelection ? selectedProvince : null} geoJson={turkeyProvinceGeoJson} />

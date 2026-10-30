@@ -25,6 +25,13 @@ export const calculateDurationMinutes = (departureTime, arrivalTime) => {
   return end - start;
 };
 
+export const resolveTripDurationMinutes = (trip, estimatedDuration = 0, manuallyEdited = false) => {
+  const hasManualDuration = manuallyEdited && trip.durationMinutes !== '' && trip.durationMinutes != null;
+  if (hasManualDuration) return toNumeric(trip.durationMinutes);
+  const timeDuration = calculateDurationMinutes(trip.departureTime, trip.arrivalTime);
+  return timeDuration !== '' ? timeDuration : estimatedDuration || toNumeric(trip.durationMinutes);
+};
+
 export const normalizeTripPayload = (trip, userId) => {
   const durationMinutes = trip.durationMinutes || calculateDurationMinutes(trip.departureTime, trip.arrivalTime);
   const stops = typeof trip.stops === 'string' ? trip.stops.split(',').map((stop) => stop.trim()).filter(Boolean) : trip.stops || [];

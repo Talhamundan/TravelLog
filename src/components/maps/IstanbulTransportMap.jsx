@@ -1,3 +1,4 @@
+import ModifierWheelZoom from './ModifierWheelZoom';
 import 'leaflet/dist/leaflet.css';
 import '../../config/leafletIcons.js';
 import { CircleMarker, MapContainer, Polyline, Popup, TileLayer, Tooltip, useMap } from 'react-leaflet';
@@ -57,6 +58,7 @@ export default function IstanbulTransportMap({ selectedRoute, origin, destinatio
           className="trip-map istanbul-real-map map-theme-dark"
           scrollWheelZoom
         >
+          <ModifierWheelZoom />
           <TileLayer attribution={theme.attribution} url={theme.tileUrl} />
           <IstanbulMapFitter routePoints={routePoints} markers={markers} fitKey={mapKey} />
           {routePoints.length >= 2 && (

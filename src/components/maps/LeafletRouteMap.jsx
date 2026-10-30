@@ -1,3 +1,4 @@
+import ModifierWheelZoom from './ModifierWheelZoom';
 import 'leaflet/dist/leaflet.css';
 import '../../config/leafletIcons.js';
 import { Fragment, useEffect, useMemo, useRef } from 'react';
@@ -32,6 +33,7 @@ export default function LeafletRouteMap({ trips = [], trip, routePreview, theme 
         className={`trip-map osm-route-map leaflet-route-map map-theme-${theme} ${className}`}
         scrollWheelZoom
       >
+        <ModifierWheelZoom />
         <TileLayer attribution="&copy; OpenStreetMap contributors" url={tiles[theme] || tiles.dark} />
         <FitBounds points={[]} />
       </MapContainer>
@@ -49,6 +51,7 @@ export default function LeafletRouteMap({ trips = [], trip, routePreview, theme 
       className={`trip-map osm-route-map leaflet-route-map map-theme-${theme} ${className}`}
       scrollWheelZoom
     >
+      <ModifierWheelZoom />
       <TileLayer attribution="&copy; OpenStreetMap contributors" url={tiles[theme] || tiles.dark} />
       <FitBounds points={allPoints} />
       {routeItems.map((item) => (

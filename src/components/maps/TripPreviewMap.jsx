@@ -1,9 +1,8 @@
 // Yeni seyahat wizard'ında gerçek Leaflet harita ile rota önizlemesi gösterir.
 import { useMemo } from 'react';
 import LeafletRouteMap from './LeafletRouteMap';
-import { formatCurrency, formatKm, minutesToDuration } from '../../utils/formatters';
 
-export default function TripPreviewMap({ form, distanceKm, durationMinutes, totalCost, routeResult, routeError }) {
+export default function TripPreviewMap({ form, routeResult, routeError, children }) {
   const routePreview = useMemo(
     () => ({
       id: 'preview',
@@ -24,18 +23,11 @@ export default function TripPreviewMap({ form, distanceKm, durationMinutes, tota
       <div className="wizard-map-canvas">
         <LeafletRouteMap routePreview={routePreview} theme="light" className="wizard-preview-map" />
       </div>
-      <aside className="wizard-map-info">
-        <span>Tahmini mesafe</span>
-        <strong>{formatKm(distanceKm)}</strong>
-        <span>Tahmini süre</span>
-        <strong>{minutesToDuration(durationMinutes)}</strong>
-        <span>Ulaşım türü</span>
-        <strong>{form.transportType || '-'}</strong>
-        <span>Tahmini masraf</span>
-        <strong>{formatCurrency(totalCost, form.currency)}</strong>
+      <div className="wizard-map-summary">
+        {children}
         {routeResult?.provider === 'airline-estimate' && <small>Uçuş mesafesi tahminidir.</small>}
         {routeError && <small>{routeError}</small>}
-      </aside>
+      </div>
     </section>
   );
 }

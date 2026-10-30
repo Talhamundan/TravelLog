@@ -1,3 +1,4 @@
+import ModifierWheelZoom from './ModifierWheelZoom';
 import 'leaflet/dist/leaflet.css';
 import '../../config/leafletIcons.js';
 import { useEffect, useRef } from 'react';
@@ -54,6 +55,7 @@ export default function TravelMapBase({
       className={`trip-map map-theme-${themeConfig.id} ${className}`}
       scrollWheelZoom={scrollWheelZoom}
     >
+      <ModifierWheelZoom />
       <TileLayer attribution={themeConfig.attribution} url={themeConfig.tileUrl} />
       {onMapClick && <MapClickPicker onPick={onMapClick} />}
       <MapInvalidator />
